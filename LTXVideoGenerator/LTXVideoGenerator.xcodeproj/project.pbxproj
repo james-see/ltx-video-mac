@@ -24,6 +24,7 @@
 		AA00001D /* PreferencesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00001E; };
 		AA00001F /* ltx_generator.py in Resources */ = {isa = PBXBuildFile; fileRef = AA000020; };
 		AA000021 /* PythonKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000022; };
+		AA000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000024; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -43,6 +44,7 @@
 		AA00001C /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		AA00001E /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		AA000020 /* ltx_generator.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = ltx_generator.py; sourceTree = "<group>"; };
+		AA000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000030 /* LTXVideoGenerator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LTXVideoGenerator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -63,6 +65,7 @@
 			children = (
 				AA000051 /* Sources */,
 				AA000052 /* Resources */,
+				AA000024 /* Assets.xcassets */,
 				AA000053 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -193,6 +196,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				AA000023 /* Assets.xcassets in Resources */,
 				AA00001F /* ltx_generator.py in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
