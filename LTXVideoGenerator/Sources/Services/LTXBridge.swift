@@ -297,16 +297,28 @@ except Exception as e:
                     }
                 } else if stderr.hasPrefix("DOWNLOAD:START:") {
                     let repo = String(stderr.dropFirst(15))
-                    progressHandler(0.02, "Downloading model: \(repo) (~10GB)")
+                    progressHandler(0.01, "Downloading model: \(repo) (~90GB)")
+                } else if stderr.hasPrefix("DOWNLOAD:PROGRESS:") {
+                    // Format: DOWNLOAD:PROGRESS:current:total:pct%
+                    let parts = stderr.dropFirst(18).split(separator: ":")
+                    if parts.count >= 3 {
+                        let current = Int(parts[0]) ?? 0
+                        let total = Int(parts[1]) ?? 1
+                        let pctStr = String(parts[2]).replacingOccurrences(of: "%", with: "")
+                        let pct = Int(pctStr) ?? 0
+                        // Map download progress to 1-8% of total progress
+                        let mappedProgress = 0.01 + (Double(pct) / 100.0 * 0.07)
+                        progressHandler(mappedProgress, "Downloading: \(current)/\(total) files (\(pct)%)")
+                    }
                 } else if stderr.hasPrefix("DOWNLOAD:COMPLETE:") {
                     progressHandler(0.08, "Model download complete")
                 } else if stderr.contains("Downloading") || stderr.contains("Fetching") {
-                    // Fallback for tqdm/huggingface_hub progress
+                    // Fallback for tqdm/huggingface_hub progress (legacy)
                     if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
                         let currentFile = Int(match.2) ?? 0
                         let totalFiles = Int(match.3) ?? 1
                         let percent = Double(currentFile) / Double(totalFiles)
-                        let mappedProgress = 0.02 + (percent * 0.06)
+                        let mappedProgress = 0.01 + (percent * 0.07)
                         progressHandler(mappedProgress, "Downloading: \(currentFile)/\(totalFiles) files")
                     }
                 }

@@ -9,6 +9,39 @@ from pathlib import Path
 from huggingface_hub import snapshot_download
 from PIL import Image
 import sys
+from tqdm import tqdm
+
+
+class DownloadProgressBar(tqdm):
+    """Custom tqdm that outputs progress for Swift GUI parsing."""
+
+    def __init__(self, *args, **kwargs):
+        # Disable default tqdm output
+        kwargs['disable'] = False
+        kwargs['file'] = sys.stderr
+        super().__init__(*args, **kwargs)
+        self._last_reported = -1
+
+    def update(self, n=1):
+        super().update(n)
+        # Output progress in parseable format
+        if self.total and self.total > 0:
+            current = self.n
+            total = self.total
+            # Only report when percentage changes to avoid spam
+            pct = int(100 * current / total)
+            if pct != self._last_reported:
+                self._last_reported = pct
+                print(f"DOWNLOAD:PROGRESS:{current}:{total}:{pct}%",
+                      file=sys.stderr)
+                sys.stderr.flush()
+
+    def close(self):
+        if self.total and self.n >= self.total:
+            print(f"DOWNLOAD:PROGRESS:{self.total}:{self.total}:100%",
+                  file=sys.stderr)
+            sys.stderr.flush()
+        super().close()
 
 
 def get_model_path(model_repo: str):
@@ -18,7 +51,7 @@ def get_model_path(model_repo: str):
         "ltx-2-19b-distilled.safetensors",
         "ltx-2-spatial-upscaler-x2-1.0.safetensors",
     ]
-    
+
     try:
         path = Path(snapshot_download(repo_id=model_repo, local_files_only=True))
         # Verify required files actually exist
@@ -28,14 +61,14 @@ def get_model_path(model_repo: str):
         return path
     except Exception:
         print("DOWNLOAD:START:" + model_repo, file=sys.stderr)
-        print("Downloading LTX-2 model weights (this may take a while)...",
+        print("Downloading LTX-2 model (~90GB, this may take a while)...",
               file=sys.stderr)
         sys.stderr.flush()
         path = Path(snapshot_download(
             repo_id=model_repo,
             local_files_only=False,
-            resume_download=True,
             allow_patterns=["*.safetensors", "*.json"],
+            tqdm_class=DownloadProgressBar,
         ))
         # Verify download completed successfully
         missing_files = [f for f in required_files if not (path / f).exists()]
