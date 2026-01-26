@@ -12,3 +12,5 @@ accelerate>=0.25.0
 safetensors>=0.4.0
 sentencepiece>=0.1.99
 numpy>=1.24.0
+Pillow>=10.0.0
+av>=10.0.0

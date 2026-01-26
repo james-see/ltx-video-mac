@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PromptInputView: View {
     @EnvironmentObject var generationService: GenerationService
@@ -9,6 +10,9 @@ struct PromptInputView: View {
     @Binding var parameters: GenerationParameters
     
     @State private var showNegativePrompt = false
+    @State private var showImageToVideo = false
+    @State private var sourceImagePath: String?
+    @State private var sourceImageThumbnail: NSImage?
     @State private var showCompletedIndicator = false
     @FocusState private var isPromptFocused: Bool
     
@@ -34,6 +38,85 @@ struct PromptInputView: View {
                             .stroke(isPromptFocused ? Color.accentColor : Color.clear, lineWidth: 2)
                     )
                     .focused($isPromptFocused)
+            }
+            
+            // Image-to-Video section
+            DisclosureGroup(isExpanded: $showImageToVideo) {
+                VStack(alignment: .leading, spacing: 12) {
+                    if let imagePath = sourceImagePath, let thumbnail = sourceImageThumbnail {
+                        // Show selected image
+                        HStack(spacing: 12) {
+                            Image(nsImage: thumbnail)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 80, height: 80)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.accentColor, lineWidth: 2)
+                                )
+                            
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(URL(fileURLWithPath: imagePath).lastPathComponent)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .lineLimit(1)
+                                
+                                if let size = thumbnail.size {
+                                    Text("\(Int(size.width))x\(Int(size.height))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                
+                                Button(role: .destructive) {
+                                    clearSourceImage()
+                                } label: {
+                                    Label("Remove", systemImage: "xmark.circle.fill")
+                                        .font(.caption)
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.red)
+                            }
+                            
+                            Spacer()
+                        }
+                        .padding(8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                    } else {
+                        // Show picker button
+                        Button {
+                            selectSourceImage()
+                        } label: {
+                            HStack {
+                                Image(systemName: "photo.badge.plus")
+                                Text("Select Source Image...")
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    
+                    Text("Select an image to use as the first frame. Your prompt should describe the motion/action.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            } label: {
+                HStack {
+                    Label("Image to Video", systemImage: "photo.on.rectangle.angled")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    if sourceImagePath != nil {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    }
+                }
             }
             
             // Negative prompt toggle
@@ -158,6 +241,7 @@ struct PromptInputView: View {
         let request = GenerationRequest(
             prompt: prompt,
             negativePrompt: negativePrompt,
+            sourceImagePath: sourceImagePath,
             parameters: parameters
         )
         generationService.addToQueue(request)
@@ -167,6 +251,7 @@ struct PromptInputView: View {
         let request = GenerationRequest(
             prompt: prompt,
             negativePrompt: negativePrompt,
+            sourceImagePath: sourceImagePath,
             parameters: parameters
         )
         generationService.addToQueue(request)
@@ -177,6 +262,7 @@ struct PromptInputView: View {
             GenerationRequest(
                 prompt: prompt,
                 negativePrompt: negativePrompt,
+                sourceImagePath: sourceImagePath,
                 parameters: GenerationParameters(
                     numInferenceSteps: parameters.numInferenceSteps,
                     guidanceScale: parameters.guidanceScale,
@@ -189,6 +275,56 @@ struct PromptInputView: View {
             )
         }
         generationService.addBatch(requests)
+    }
+    
+    // MARK: - Image Selection
+    
+    private func selectSourceImage() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.image, .png, .jpeg, .webP]
+        panel.message = "Select source image for image-to-video generation"
+        panel.prompt = "Select"
+        
+        if panel.runModal() == .OK, let url = panel.url {
+            sourceImagePath = url.path
+            loadThumbnail(from: url)
+            
+            // Auto-expand the section when image is selected
+            showImageToVideo = true
+        }
+    }
+    
+    private func loadThumbnail(from url: URL) {
+        if let image = NSImage(contentsOf: url) {
+            // Create a smaller thumbnail for display
+            let maxSize: CGFloat = 160
+            let aspectRatio = image.size.width / image.size.height
+            
+            let thumbnailSize: NSSize
+            if aspectRatio > 1 {
+                thumbnailSize = NSSize(width: maxSize, height: maxSize / aspectRatio)
+            } else {
+                thumbnailSize = NSSize(width: maxSize * aspectRatio, height: maxSize)
+            }
+            
+            let thumbnail = NSImage(size: thumbnailSize)
+            thumbnail.lockFocus()
+            image.draw(in: NSRect(origin: .zero, size: thumbnailSize),
+                      from: NSRect(origin: .zero, size: image.size),
+                      operation: .copy,
+                      fraction: 1.0)
+            thumbnail.unlockFocus()
+            
+            sourceImageThumbnail = thumbnail
+        }
+    }
+    
+    private func clearSourceImage() {
+        sourceImagePath = nil
+        sourceImageThumbnail = nil
     }
 }
 

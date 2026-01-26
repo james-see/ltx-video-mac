@@ -4,14 +4,21 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
     let id: UUID
     let prompt: String
     let negativePrompt: String
+    let sourceImagePath: String?  // For image-to-video mode
     var parameters: GenerationParameters
     let createdAt: Date
     var status: GenerationStatus
+    
+    /// True if this is an image-to-video request
+    var isImageToVideo: Bool {
+        sourceImagePath != nil && !sourceImagePath!.isEmpty
+    }
     
     init(
         id: UUID = UUID(),
         prompt: String,
         negativePrompt: String = "",
+        sourceImagePath: String? = nil,
         parameters: GenerationParameters = .default,
         createdAt: Date = Date(),
         status: GenerationStatus = .pending
@@ -19,6 +26,7 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
         self.id = id
         self.prompt = prompt
         self.negativePrompt = negativePrompt
+        self.sourceImagePath = sourceImagePath
         self.parameters = parameters
         self.createdAt = createdAt
         self.status = status

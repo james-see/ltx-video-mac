@@ -137,7 +137,9 @@ class LTXBridge {
         let subfolder = modelVariant.subfolder
         let isDistilled = modelVariant == .distilled
         
-        progressHandler(0.1, "Starting generation with \(modelVariant.displayName)...")
+        let isImageToVideo = request.isImageToVideo
+        let modeDescription = isImageToVideo ? "image-to-video" : "text-to-video"
+        progressHandler(0.1, "Starting \(modeDescription) with \(modelVariant.displayName)...")
         
         // Escape the prompt for Python
         let escapedPrompt = request.prompt
@@ -149,6 +151,11 @@ class LTXBridge {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
+        
+        // Escape source image path if provided
+        let escapedImagePath = request.sourceImagePath?
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"") ?? ""
         
         // Log file path
         let logFile = "/tmp/ltx_generation.log"
@@ -176,6 +183,18 @@ try:
     log(f"Python: {sys.executable}")
     log(f"Torch version: {torch.__version__}")
     log(f"MPS available: {torch.backends.mps.is_available()}")
+    
+    # Image-to-video: load source image if provided
+    source_image_path = "\(escapedImagePath)"
+    source_image = None
+    mode = "text-to-video"
+    if source_image_path:
+        from PIL import Image
+        source_image = Image.open(source_image_path).convert("RGB")
+        mode = "image-to-video"
+        log(f"Source image loaded: {source_image_path} ({source_image.size[0]}x{source_image.size[1]})")
+    
+    log(f"Mode: {mode}")
     log("Loading model...")
     
     model_repo = "Lightricks/LTX-2"
@@ -222,9 +241,11 @@ try:
         torch.mps.synchronize()
     
     # LTX-2 returns video and audio
+    # Pass source_image for image-to-video mode (None for text-to-video)
     video, audio = pipe(
         prompt=prompt,
         negative_prompt=negative_prompt if not is_distilled else None,
+        image=source_image,
         num_inference_steps=\(params.numInferenceSteps),
         guidance_scale=guidance,
         width=gen_width,
@@ -259,7 +280,7 @@ try:
     
     log("Export complete!")
     log_file.close()
-    print(json.dumps({"video_path": "\(outputPath)", "seed": \(seed)}))
+    print(json.dumps({"video_path": "\(outputPath)", "seed": \(seed), "mode": mode}))
 except Exception as e:
     log(f"ERROR: {e}")
     import traceback

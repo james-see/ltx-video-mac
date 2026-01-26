@@ -73,6 +73,7 @@ class LTXGenerator:
         prompt: str,
         output_path: str,
         negative_prompt: str = "",
+        source_image_path: str | None = None,
         num_inference_steps: int | None = None,
         guidance_scale: float | None = None,
         width: int = 768,
@@ -82,13 +83,33 @@ class LTXGenerator:
         seed: int | None = None,
     ) -> dict:
         """
-        Generate a video from a text prompt.
+        Generate a video from a text prompt, optionally starting from a source image.
+        
+        Args:
+            prompt: Text description of the video to generate
+            output_path: Where to save the output video
+            negative_prompt: What to avoid in the generation
+            source_image_path: Optional path to source image for image-to-video
+            num_inference_steps: Number of denoising steps
+            guidance_scale: How closely to follow the prompt
+            width: Video width in pixels
+            height: Video height in pixels
+            num_frames: Number of frames to generate
+            fps: Frames per second
+            seed: Random seed for reproducibility
         
         Returns:
-            dict with 'video_path' and 'seed' keys
+            dict with 'video_path', 'seed', and 'mode' keys
         """
         if self.pipe is None:
             self.load_model()
+        
+        # Load source image if provided (image-to-video mode)
+        source_image = None
+        if source_image_path:
+            from PIL import Image
+            source_image = Image.open(source_image_path).convert("RGB")
+            print(f"  Source image: {source_image_path} ({source_image.size[0]}x{source_image.size[1]})", file=sys.stderr)
         
         # Get variant-specific defaults
         variant_info = MODEL_VARIANTS.get(self.model_variant, MODEL_VARIANTS["full"])
@@ -112,7 +133,9 @@ class LTXGenerator:
         generator = torch.Generator(device=self.device)
         generator.manual_seed(seed)
         
+        mode = "image-to-video" if source_image else "text-to-video"
         print(f"Generating video with seed {seed}...", file=sys.stderr)
+        print(f"  Mode: {mode}", file=sys.stderr)
         print(f"  Model: {self.model_variant}", file=sys.stderr)
         print(f"  Prompt: {prompt[:100]}...", file=sys.stderr)
         print(f"  Size: {width}x{height}, {num_frames} frames", file=sys.stderr)
@@ -122,6 +145,7 @@ class LTXGenerator:
         video, audio = self.pipe(
             prompt=prompt,
             negative_prompt=negative_prompt if negative_prompt and not is_distilled else None,
+            image=source_image,  # None for text-to-video, Image for image-to-video
             num_inference_steps=num_inference_steps,
             guidance_scale=guidance_scale,
             width=width,
@@ -151,6 +175,7 @@ class LTXGenerator:
         return {
             "video_path": output_path,
             "seed": seed,
+            "mode": mode,
         }
     
     def unload_model(self) -> None:
@@ -171,13 +196,18 @@ Model Variants:
   fp8       - FP8 quantized, lower memory usage
 
 Examples:
-  %(prog)s "a cat playing piano" -o cat.mp4
-  %(prog)s "ocean waves" --model distilled --steps 8
-  %(prog)s "sunset timelapse" --model fp8 --frames 241
+  Text-to-video:
+    %(prog)s "a cat playing piano" -o cat.mp4
+    %(prog)s "ocean waves" --model distilled --steps 8
+  
+  Image-to-video:
+    %(prog)s "person turns head and smiles" --image photo.jpg -o animated.mp4
+    %(prog)s "waves crashing" --image beach.png --frames 161
 """
     )
     parser.add_argument("prompt", help="Text prompt for video generation")
     parser.add_argument("-o", "--output", default="output.mp4", help="Output video path")
+    parser.add_argument("-i", "--image", default=None, help="Source image for image-to-video mode")
     parser.add_argument("-n", "--negative-prompt", default="", help="Negative prompt")
     parser.add_argument("--model", type=str, default="full", choices=["full", "distilled", "fp8"],
                         help="Model variant: full, distilled, fp8")
@@ -199,6 +229,7 @@ Examples:
         prompt=args.prompt,
         output_path=args.output,
         negative_prompt=args.negative_prompt,
+        source_image_path=args.image,
         num_inference_steps=args.steps,
         guidance_scale=args.guidance,
         width=args.width,
@@ -212,6 +243,7 @@ Examples:
         print(json.dumps(result))
     else:
         print(f"\nGenerated: {result['video_path']}")
+        print(f"Mode: {result['mode']}")
         print(f"Seed: {result['seed']}")
 
 
