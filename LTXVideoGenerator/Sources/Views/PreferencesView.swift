@@ -60,8 +60,10 @@ struct PreferencesView: View {
     @State private var pythonDetails: PythonDetails?
     @State private var isValidating = false
     @State private var isDetecting = false
+    @State private var isInstalling = false
     @State private var detectedPaths: [String] = []
     @State private var showPathPicker = false
+    @State private var installMessage: String?
     
     var body: some View {
         TabView {
@@ -95,11 +97,13 @@ struct PreferencesView: View {
                     }
                     
                     // Status display
-                    if isValidating || isDetecting {
+                    if isValidating || isDetecting || isInstalling {
                         HStack {
                             ProgressView()
                                 .scaleEffect(0.7)
-                            Text(isDetecting ? "Searching for Python installations..." : "Validating Python setup...")
+                            Text(isDetecting ? "Searching for Python installations..." : 
+                                 isInstalling ? "Installing diffusers from git (this may take a minute)..." :
+                                 "Validating Python setup...")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -128,6 +132,44 @@ struct PreferencesView: View {
                                     }
                                 }
                                 .padding(.leading, 20)
+                                
+                                // Offer to install diffusers from git
+                                if details.needsDiffusersGit {
+                                    HStack {
+                                        Button("Install LTX-2 Support") {
+                                            installDiffusersFromGit(pythonPath: details.executablePath)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        
+                                        Text("Installs diffusers from git")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                                
+                                // Offer to install missing packages
+                                if !details.missingPackages.isEmpty {
+                                    HStack {
+                                        Button("Install Missing Packages") {
+                                            installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        
+                                        Text("Installs: \(details.missingPackages.joined(separator: ", "))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding(.top, 4)
+                                }
+                            }
+                            
+                            // Show install result
+                            if let msg = installMessage {
+                                Text(msg)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.top, 4)
                             }
                         }
                     }
@@ -343,6 +385,7 @@ struct PreferencesView: View {
         isValidating = true
         pythonStatus = nil
         pythonDetails = nil
+        installMessage = nil
         
         Task {
             // Use safe subprocess validation - won't crash
@@ -356,6 +399,47 @@ struct PreferencesView: View {
                 // If validation succeeded and we have details, configure for PythonKit
                 if result.success, let details = result.details {
                     PythonEnvironment.shared.configureForPythonKit(details: details)
+                }
+            }
+        }
+    }
+    
+    private func installDiffusersFromGit(pythonPath: String) {
+        isInstalling = true
+        installMessage = nil
+        
+        Task {
+            let result = await PythonEnvironment.shared.installDiffusersFromGit(pythonExecutable: pythonPath)
+            
+            await MainActor.run {
+                isInstalling = false
+                
+                if result.success {
+                    installMessage = "Installation successful! Re-validating..."
+                    // Re-validate after install
+                    validatePython()
+                } else {
+                    installMessage = "Install failed: \(result.message)"
+                }
+            }
+        }
+    }
+    
+    private func installMissingPackages(pythonPath: String, packages: [String]) {
+        isInstalling = true
+        installMessage = nil
+        
+        Task {
+            let result = await PythonEnvironment.shared.installPackages(pythonExecutable: pythonPath, packages: packages)
+            
+            await MainActor.run {
+                isInstalling = false
+                
+                if result.success {
+                    installMessage = "Installation successful! Re-validating..."
+                    validatePython()
+                } else {
+                    installMessage = "Install failed: \(result.message)"
                 }
             }
         }

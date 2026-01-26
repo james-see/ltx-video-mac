@@ -8,6 +8,17 @@ struct PythonDetails {
     let pythonHome: String
     let hasRequiredPackages: Bool
     let missingPackages: [String]
+    let needsDiffusersGit: Bool  // True if LTX2Pipeline not available
+    
+    init(version: String, executablePath: String, dylibPath: String?, pythonHome: String, hasRequiredPackages: Bool, missingPackages: [String], needsDiffusersGit: Bool = false) {
+        self.version = version
+        self.executablePath = executablePath
+        self.dylibPath = dylibPath
+        self.pythonHome = pythonHome
+        self.hasRequiredPackages = hasRequiredPackages
+        self.missingPackages = missingPackages
+        self.needsDiffusersGit = needsDiffusersGit
+    }
 }
 
 /// Manages Python environment detection and validation
@@ -249,7 +260,8 @@ class PythonEnvironment {
             dylibPath: dylibPath,
             pythonHome: pythonHome,
             hasRequiredPackages: hasRequired,
-            missingPackages: missingPackages
+            missingPackages: missingPackages,
+            needsDiffusersGit: needsDiffusersGit
         )
         
         if !missingPackages.isEmpty {
@@ -258,7 +270,7 @@ class PythonEnvironment {
         }
         
         if needsDiffusersGit {
-            return (false, "Python \(version) found but LTX-2 support requires diffusers from git. Run: pip install git+https://github.com/huggingface/diffusers.git", details)
+            return (false, "Python \(version) found but LTX-2 requires diffusers from git.", details)
         }
         
         return (true, "Python \(version) configured successfully with all required packages", details)
@@ -436,6 +448,100 @@ class PythonEnvironment {
         }
         
         return (nil, (false, "Found \(candidates.count) Python installation(s) but none are compatible. Please install Python 3.10+ with PyTorch and diffusers.", nil))
+    }
+    
+    // MARK: - Package Installation
+    
+    /// Install diffusers from git for LTX-2 support
+    /// Returns (success, output/error message)
+    func installDiffusersFromGit(pythonExecutable: String) async -> (success: Bool, message: String) {
+        // Find pip relative to python executable
+        let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
+            .replacingOccurrences(of: "/python", with: "/pip")
+        
+        // Try pip3 first, fall back to python -m pip
+        let usePipModule = !FileManager.default.isExecutableFile(atPath: pipPath)
+        
+        let process = Process()
+        if usePipModule {
+            process.executableURL = URL(fileURLWithPath: pythonExecutable)
+            process.arguments = ["-m", "pip", "install", "--upgrade", "git+https://github.com/huggingface/diffusers.git"]
+        } else {
+            process.executableURL = URL(fileURLWithPath: pipPath)
+            process.arguments = ["install", "--upgrade", "git+https://github.com/huggingface/diffusers.git"]
+        }
+        
+        // Set up environment
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
+        process.environment = env
+        
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: outputData, encoding: .utf8) ?? ""
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            
+            if process.terminationStatus == 0 {
+                return (true, "Successfully installed diffusers from git.\n\(output)")
+            } else {
+                return (false, "Installation failed (exit \(process.terminationStatus)):\n\(errorOutput)\n\(output)")
+            }
+        } catch {
+            return (false, "Failed to run pip: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Install missing packages using pip
+    func installPackages(pythonExecutable: String, packages: [String]) async -> (success: Bool, message: String) {
+        let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
+            .replacingOccurrences(of: "/python", with: "/pip")
+        
+        let usePipModule = !FileManager.default.isExecutableFile(atPath: pipPath)
+        
+        let process = Process()
+        if usePipModule {
+            process.executableURL = URL(fileURLWithPath: pythonExecutable)
+            process.arguments = ["-m", "pip", "install"] + packages
+        } else {
+            process.executableURL = URL(fileURLWithPath: pipPath)
+            process.arguments = ["install"] + packages
+        }
+        
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
+        process.environment = env
+        
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: outputData, encoding: .utf8) ?? ""
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            
+            if process.terminationStatus == 0 {
+                return (true, "Successfully installed \(packages.joined(separator: ", ")).\n\(output)")
+            } else {
+                return (false, "Installation failed:\n\(errorOutput)\n\(output)")
+            }
+        } catch {
+            return (false, "Failed to run pip: \(error.localizedDescription)")
+        }
     }
     
     // MARK: - Configuration (for PythonKit - only call after subprocess validation)
