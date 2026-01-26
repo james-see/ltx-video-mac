@@ -28,7 +28,7 @@ class LTXBridge {
     static let shared = LTXBridge()
     
     private(set) var isModelLoaded = false
-    private var pythonPath: String?
+    private var pythonHome: String?
     private var pythonExecutable: String?
     
     private init() {
@@ -37,13 +37,55 @@ class LTXBridge {
     
     private func setupPythonPaths() {
         // Get Python path from user defaults
-        if let libPath = UserDefaults.standard.string(forKey: "pythonPath"),
-           !libPath.isEmpty {
-            // Extract python home from lib path
-            // e.g., /Users/jc/.pyenv/versions/3.12.11/lib/libpython3.12.dylib
-            if let pythonHome = libPath.components(separatedBy: "/lib/libpython").first {
-                pythonPath = pythonHome
-                pythonExecutable = "\(pythonHome)/bin/python3"
+        guard let savedPath = UserDefaults.standard.string(forKey: "pythonPath"),
+              !savedPath.isEmpty else {
+            pythonExecutable = nil
+            pythonHome = nil
+            return
+        }
+        
+        // Use PythonEnvironment's path detection to handle both executable and dylib paths
+        let pathType = PythonEnvironment.shared.detectPathType(savedPath)
+        
+        switch pathType {
+        case .executable:
+            // Direct executable path
+            pythonExecutable = savedPath
+            // Try to find python home
+            if let dylib = PythonEnvironment.shared.executableToDylib(savedPath),
+               let home = PythonEnvironment.shared.extractPythonHome(from: dylib) {
+                pythonHome = home
+            } else {
+                // Fallback: assume standard layout
+                let execURL = URL(fileURLWithPath: savedPath)
+                pythonHome = execURL.deletingLastPathComponent().deletingLastPathComponent().path
+            }
+            
+        case .dylib:
+            // Dylib path - extract executable
+            if let exec = PythonEnvironment.shared.dylibToExecutable(savedPath) {
+                pythonExecutable = exec
+            }
+            if let home = PythonEnvironment.shared.extractPythonHome(from: savedPath) {
+                pythonHome = home
+                // If we couldn't find executable, try standard location
+                if pythonExecutable == nil {
+                    let standardExec = "\(home)/bin/python3"
+                    if FileManager.default.isExecutableFile(atPath: standardExec) {
+                        pythonExecutable = standardExec
+                    }
+                }
+            }
+            
+        case .unknown:
+            // Try to use it as executable if it exists and is executable
+            if FileManager.default.isExecutableFile(atPath: savedPath) {
+                pythonExecutable = savedPath
+                let execURL = URL(fileURLWithPath: savedPath)
+                pythonHome = execURL.deletingLastPathComponent().deletingLastPathComponent().path
+            } else {
+                pythonExecutable = nil
+                pythonHome = nil
             }
         }
     }
