@@ -106,7 +106,7 @@ class LTXBridge {
             throw LTXError.pythonNotConfigured
         }
         
-        progressHandler("MLX environment ready. Model will download on first generation (~10GB).")
+        progressHandler("MLX environment ready. Model will download on first generation (~90GB).")
         isModelLoaded = true
     }
     

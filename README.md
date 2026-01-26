@@ -5,15 +5,17 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/james-see/ltx-video-mac)](https://github.com/james-see/ltx-video-mac/releases)
 
-A beautiful, native macOS application for generating AI videos from text prompts using the LTX-Video model from Lightricks, optimized for Apple Silicon.
+A beautiful, native macOS application for generating AI videos from text prompts using the LTX-2 model, running natively on Apple Silicon with MLX.
 
 ![screenshot](https://i.imgur.com/LfBhmJa.png)
 
 ## Features
 
 - **Native macOS App** - Built with SwiftUI for a seamless Mac experience
-- **Apple Silicon Optimized** - Leverages MPS (Metal Performance Shaders) for GPU acceleration
+- **Apple Silicon Native** - Uses MLX framework for optimal performance on M-series chips
 - **Text-to-Video Generation** - Transform text prompts into video clips
+- **Image-to-Video** - Animate images into videos (coming soon)
+- **Auto Package Installer** - Missing Python packages are detected and can be installed with one click
 - **Generation Queue** - Queue multiple generations with real-time progress tracking
 - **History Management** - Browse, preview, and manage all your generated videos
 - **Presets** - Save and load generation parameter presets
@@ -23,9 +25,9 @@ A beautiful, native macOS application for generating AI videos from text prompts
 
 - **macOS 14.0** or later
 - **Apple Silicon** Mac (M1, M2, M3, M4 series)
-- **16GB RAM** minimum (32GB+ recommended for higher resolutions)
-- **Python 3.10+** with PyTorch and diffusers installed
-- **~15GB disk space** for model weights
+- **32GB RAM** minimum (64GB+ recommended for higher resolutions)
+- **Python 3.10+** installed (via Homebrew, pyenv, or system)
+- **~100GB disk space** for model weights
 
 ## Installation
 
@@ -33,29 +35,33 @@ A beautiful, native macOS application for generating AI videos from text prompts
 
 Download the latest release from the [Releases page](https://github.com/james-see/ltx-video-mac/releases).
 
-### 2. Install Python Dependencies
-
-```bash
-# Create a virtual environment (recommended)
-python3 -m venv ~/ltx-venv
-source ~/ltx-venv/bin/activate
-
-# Install required packages
-pip install torch torchvision torchaudio
-pip install diffusers accelerate transformers safetensors sentencepiece
-pip install imageio imageio-ffmpeg opencv-python
-```
-
-### 3. Configure the App
+### 2. First Launch Setup
 
 1. Open LTX Video Generator
 2. Go to **Preferences** (⌘,)
-3. Set your Python executable path (e.g., `~/ltx-venv/bin/python3`)
-4. Click **Validate** to verify the configuration
+3. Click **Auto Detect** to find your Python installation, or manually set the path
+4. Click **Validate Setup** - the app will check for required packages
 
-### 4. First Generation
+### 3. Install Python Packages
 
-The model (~15GB) will be downloaded automatically on first use. Subsequent generations will be much faster.
+If packages are missing, the app will show an "Install Missing Packages" button. Click it to automatically install:
+
+```
+mlx mlx-vlm transformers safetensors huggingface_hub numpy opencv-python tqdm
+```
+
+Or install manually:
+```bash
+pip install mlx mlx-vlm transformers safetensors huggingface_hub numpy opencv-python tqdm
+```
+
+### 4. First Generation - Model Download
+
+**Important:** On first generation, the app will download the LTX-2 model (~90GB) from Hugging Face. This is a one-time download that may take 30-60 minutes depending on your internet connection.
+
+The model is cached in `~/.cache/huggingface/` and will not be re-downloaded on subsequent runs.
+
+Progress is shown in the app during download.
 
 ## Usage
 
@@ -63,7 +69,7 @@ The model (~15GB) will be downloaded automatically on first use. Subsequent gene
 2. Adjust parameters using presets or manual controls
 3. Click **Generate** to start
 4. Watch progress in the Queue sidebar
-5. Find completed videos in the History tab
+5. Find completed videos in your configured output directory (default: Application Support)
 
 ### Tips for Better Results
 
@@ -89,10 +95,32 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
 ## Technical Details
 
 - **Frontend**: SwiftUI
-- **Python Bridge**: Subprocess execution for stability
-- **ML Framework**: PyTorch with MPS backend
-- **Model**: [LTX-Video 0.9.1](https://huggingface.co/a-r-r-o-w/LTX-Video-0.9.1-diffusers) via Hugging Face diffusers
-- **Precision**: bfloat16 (recommended for Apple Silicon)
+- **Python Bridge**: Subprocess execution with progress streaming
+- **ML Framework**: [MLX](https://github.com/ml-explore/mlx) (Apple's machine learning framework)
+- **Video Model**: [LTX-2 Distilled](https://huggingface.co/mlx-community/LTX-2-distilled-bf16) (19B parameters, 2-stage generation)
+- **Precision**: bfloat16
+
+### Architecture
+
+The app bundles the [mlx-video](https://github.com/Blaizzy/mlx-video) code for native MLX inference. Generation uses a 2-stage pipeline:
+1. Stage 1: Generate at half resolution
+2. Stage 2: Upsample and refine to full resolution
+
+## Troubleshooting
+
+### "Model download stuck"
+The download progress updates every 1%. For a 90GB download, each percent is ~900MB. Be patient.
+
+### "Out of memory"
+- Reduce resolution (512x320 is fastest)
+- Reduce frame count
+- Close other applications
+- 32GB RAM minimum, 64GB recommended
+
+### "Python not found"
+- Install Python via Homebrew: `brew install python@3.12`
+- Or use pyenv: `pyenv install 3.12`
+- Then click "Auto Detect" in Preferences
 
 ## License
 
@@ -100,6 +128,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Lightricks](https://www.lightricks.com/) for the LTX-Video model
-- [Hugging Face](https://huggingface.co/) for the diffusers library
-- [PythonKit](https://github.com/pvieito/PythonKit) for Swift-Python interop
+- [Lightricks](https://www.lightricks.com/) for the LTX-2 model
+- [MLX Community](https://huggingface.co/mlx-community) for the MLX-converted weights
+- [Blaizzy/mlx-video](https://github.com/Blaizzy/mlx-video) for the MLX video generation code
+- [Hugging Face](https://huggingface.co/) for model hosting

@@ -13,7 +13,7 @@ enum LTXModelVariant: String, CaseIterable, Identifiable {
     
     var description: String {
         switch self {
-        case .distilled: return "2-stage generation, optimized for Apple Silicon (~10GB download)"
+        case .distilled: return "2-stage generation, optimized for Apple Silicon (~90GB download)"
         }
     }
     
@@ -246,7 +246,7 @@ struct PreferencesView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Model Download")
                                 .font(.caption.bold())
-                            Text("LTX-2 model (~10GB) will download automatically on first generation. Models are cached in ~/.cache/huggingface/")
+                            Text("LTX-2 model (~90GB) will download automatically on first generation. Models are cached in ~/.cache/huggingface/")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
