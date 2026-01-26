@@ -1,16 +1,32 @@
-# LTX Video Generator - Python Dependencies
-# 
-# IMPORTANT: LTX-2 requires diffusers from git (not PyPI release yet)
-# Install with:
-#   pip install git+https://github.com/huggingface/diffusers.git
-#   pip install -r requirements.txt
+# LTX Video Generator - MLX Dependencies
+# Required for Apple Silicon MLX-based video generation
 
-torch>=2.1.2
-# diffusers - install from git: pip install git+https://github.com/huggingface/diffusers.git
-transformers>=4.45.0
-accelerate>=0.25.0
+# Core MLX framework
+mlx>=0.20.0
+
+# MLX Vision-Language Models (required for Gemma 3 text encoder)
+mlx-vlm>=0.3.0
+
+# MLX Language Models (for prompt enhancement)
+mlx-lm>=0.19.0
+
+# Hugging Face model downloading
+huggingface_hub>=0.20.0
+
+# Tokenization
+transformers>=4.40.0
+
+# Weight file format
 safetensors>=0.4.0
-sentencepiece>=0.1.99
+
+# Numerical operations
 numpy>=1.24.0
+
+# Image processing
 Pillow>=10.0.0
-av>=10.0.0
+
+# Video encoding
+opencv-python>=4.8.0
+
+# Progress bars
+tqdm>=4.65.0

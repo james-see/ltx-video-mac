@@ -129,7 +129,7 @@ struct ModelStatusView: View {
     @AppStorage("selectedModelVariant") private var selectedModelVariant = "full"
     
     private var currentModelVariant: LTXModelVariant {
-        LTXModelVariant(rawValue: selectedModelVariant) ?? .full
+        LTXModelVariant(rawValue: selectedModelVariant) ?? .distilled
     }
     
     var body: some View {
@@ -141,12 +141,12 @@ struct ModelStatusView: View {
                 Text(currentModelVariant.displayName)
                     .font(.caption.bold())
                 Spacer()
-                Text("MPS")
+                Text("MLX")
                     .font(.caption2.monospaced())
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Capsule().fill(Color.green.opacity(0.2)))
-                    .foregroundStyle(.green)
+                    .background(Capsule().fill(Color.orange.opacity(0.2)))
+                    .foregroundStyle(.orange)
             }
             
             // Model status

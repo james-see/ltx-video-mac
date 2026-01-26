@@ -8,18 +8,16 @@ struct PythonDetails {
     let pythonHome: String
     let hasRequiredPackages: Bool
     let missingPackages: [String]
-    let needsDiffusersGit: Bool  // True if LTX2Pipeline not available
-    let mpsPatchApplied: Bool    // True if MPS float64 fix has been applied
+    let hasMLX: Bool  // True if MLX is available
     
-    init(version: String, executablePath: String, dylibPath: String?, pythonHome: String, hasRequiredPackages: Bool, missingPackages: [String], needsDiffusersGit: Bool = false, mpsPatchApplied: Bool = false) {
+    init(version: String, executablePath: String, dylibPath: String?, pythonHome: String, hasRequiredPackages: Bool, missingPackages: [String], hasMLX: Bool = false) {
         self.version = version
         self.executablePath = executablePath
         self.dylibPath = dylibPath
         self.pythonHome = pythonHome
         self.hasRequiredPackages = hasRequiredPackages
         self.missingPackages = missingPackages
-        self.needsDiffusersGit = needsDiffusersGit
-        self.mpsPatchApplied = mpsPatchApplied
+        self.hasMLX = hasMLX
     }
 }
 
@@ -232,79 +230,35 @@ class PythonEnvironment {
         let pythonHome = runPythonSync(executable: executablePath, script: homeScript)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        // Step 7: Check for required packages
-        let requiredPackages = ["torch", "diffusers", "av", "PIL"]
+        // Step 7: Check for required packages (bundled ltx_mlx uses these)
         var missingPackages: [String] = []
+        var hasMLX = false
         
-        for pkg in requiredPackages {
-            let checkScript = "import \(pkg); print('OK')"
-            let result = runPythonSync(executable: executablePath, script: checkScript)
+        // Required packages for bundled ltx_mlx
+        let requiredPackages = [
+            ("mlx.core", "mlx"),
+            ("mlx_vlm", "mlx-vlm"),
+            ("transformers", "transformers"),
+            ("safetensors", "safetensors"),
+            ("huggingface_hub", "huggingface_hub"),
+            ("numpy", "numpy"),
+            ("PIL", "Pillow"),
+            ("cv2", "opencv-python"),
+            ("tqdm", "tqdm")
+        ]
+        
+        for (importName, pipName) in requiredPackages {
+            let check = "import \(importName); print('OK')"
+            let result = runPythonSync(executable: executablePath, script: check)
             if result == nil || !result!.contains("OK") {
-                missingPackages.append(pkg)
+                missingPackages.append(pipName)
+            }
+            if importName == "mlx.core" && result != nil && result!.contains("OK") {
+                hasMLX = true
             }
         }
         
-        // Step 8: Check specifically for LTX2Pipeline (requires diffusers from git)
-        var needsDiffusersGit = false
-        if missingPackages.isEmpty {
-            let ltx2Check = "from diffusers import LTX2Pipeline; print('OK')"
-            let ltx2Result = runPythonSync(executable: executablePath, script: ltx2Check)
-            if ltx2Result == nil || !ltx2Result!.contains("OK") {
-                needsDiffusersGit = true
-            }
-        }
-        
-        // Step 9: Check if MPS patch is applied (and apply it if not)
-        var mpsPatchApplied = false
-        if !needsDiffusersGit && missingPackages.isEmpty {
-            let checkPatchScript = """
-import os
-import site
-
-def find_diffusers_path():
-    for path in site.getsitepackages():
-        dp = os.path.join(path, "diffusers")
-        if os.path.exists(dp):
-            return dp
-    user_site = site.getusersitepackages()
-    if user_site:
-        dp = os.path.join(user_site, "diffusers")
-        if os.path.exists(dp):
-            return dp
-    return None
-
-dp = find_diffusers_path()
-if dp:
-    connectors = os.path.join(dp, "pipelines", "ltx2", "connectors.py")
-    if os.path.exists(connectors):
-        with open(connectors, 'r') as f:
-            content = f.read()
-        # Check if already patched (has MPS fix comment) or if the problematic line exists
-        if "MPS fix" in content:
-            print("PATCHED")
-        elif "torch.float64 if self.double_precision" in content:
-            print("NEEDS_PATCH")
-        else:
-            # Might be a different version, assume OK
-            print("PATCHED")
-    else:
-        print("NO_CONNECTORS")
-else:
-    print("NO_DIFFUSERS")
-"""
-            let patchCheckResult = runPythonSync(executable: executablePath, script: checkPatchScript)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            
-            if patchCheckResult == "PATCHED" {
-                mpsPatchApplied = true
-            } else if patchCheckResult == "NEEDS_PATCH" {
-                // Auto-apply the MPS patch
-                let patchResult = await patchDiffusersForMPS(pythonExecutable: executablePath)
-                mpsPatchApplied = patchResult.success
-            }
-        }
-        
-        let hasRequired = missingPackages.isEmpty && !needsDiffusersGit
+        let hasRequired = missingPackages.isEmpty && hasMLX
         
         let details = PythonDetails(
             version: version,
@@ -313,8 +267,7 @@ else:
             pythonHome: pythonHome,
             hasRequiredPackages: hasRequired,
             missingPackages: missingPackages,
-            needsDiffusersGit: needsDiffusersGit,
-            mpsPatchApplied: mpsPatchApplied
+            hasMLX: hasMLX
         )
         
         if !missingPackages.isEmpty {
@@ -322,11 +275,11 @@ else:
             return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details)
         }
         
-        if needsDiffusersGit {
-            return (false, "Python \(version) found but LTX-2 requires diffusers from git.", details)
+        if !hasMLX {
+            return (false, "Python \(version) found but MLX not properly configured. Ensure you're on Apple Silicon.", details)
         }
         
-        return (true, "Python \(version) configured successfully with all required packages", details)
+        return (true, "Python \(version) configured with MLX", details)
     }
     
     /// Run Python script synchronously and return output (safe - uses subprocess)
@@ -505,54 +458,6 @@ else:
     
     // MARK: - Package Installation
     
-    /// Install diffusers from git for LTX-2 support
-    /// Returns (success, output/error message)
-    func installDiffusersFromGit(pythonExecutable: String) async -> (success: Bool, message: String) {
-        // Find pip relative to python executable
-        let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
-            .replacingOccurrences(of: "/python", with: "/pip")
-        
-        // Try pip3 first, fall back to python -m pip
-        let usePipModule = !FileManager.default.isExecutableFile(atPath: pipPath)
-        
-        let process = Process()
-        if usePipModule {
-            process.executableURL = URL(fileURLWithPath: pythonExecutable)
-            process.arguments = ["-m", "pip", "install", "--upgrade", "git+https://github.com/huggingface/diffusers.git"]
-        } else {
-            process.executableURL = URL(fileURLWithPath: pipPath)
-            process.arguments = ["install", "--upgrade", "git+https://github.com/huggingface/diffusers.git"]
-        }
-        
-        // Set up environment
-        var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
-        process.environment = env
-        
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            
-            let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData, encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-            
-            if process.terminationStatus == 0 {
-                return (true, "Successfully installed diffusers from git.\n\(output)")
-            } else {
-                return (false, "Installation failed (exit \(process.terminationStatus)):\n\(errorOutput)\n\(output)")
-            }
-        } catch {
-            return (false, "Failed to run pip: \(error.localizedDescription)")
-        }
-    }
-    
     /// Install missing packages using pip
     func installPackages(pythonExecutable: String, packages: [String]) async -> (success: Bool, message: String) {
         let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
@@ -594,115 +499,6 @@ else:
             }
         } catch {
             return (false, "Failed to run pip: \(error.localizedDescription)")
-        }
-    }
-    
-    /// Patch diffusers for MPS compatibility (fixes float64 error in LTX-2)
-    /// Based on fix from https://github.com/Pocket-science/ltx2-mps
-    func patchDiffusersForMPS(pythonExecutable: String) async -> (success: Bool, message: String) {
-        // Python script to find and patch diffusers - uses regex for robustness
-        let patchScript = """
-import os
-import sys
-import site
-import re
-
-def find_diffusers_path():
-    for path in site.getsitepackages():
-        diffusers_path = os.path.join(path, "diffusers")
-        if os.path.exists(diffusers_path):
-            return diffusers_path
-    user_site = site.getusersitepackages()
-    if user_site:
-        diffusers_path = os.path.join(user_site, "diffusers")
-        if os.path.exists(diffusers_path):
-            return diffusers_path
-    return None
-
-def patch_file_regex(filepath, pattern, replacement, description):
-    if not os.path.exists(filepath):
-        return f"skip: {filepath} not found"
-    
-    with open(filepath, 'r') as f:
-        content = f.read()
-    
-    if "# MPS fix" in content:
-        return f"ok: {description} (already patched)"
-    
-    new_content, count = re.subn(pattern, replacement, content)
-    
-    if count == 0:
-        return f"skip: {description} (pattern not found)"
-    
-    with open(filepath, 'w') as f:
-        f.write(new_content)
-    
-    return f"patched: {description} ({count} replacements)"
-
-diffusers_path = find_diffusers_path()
-if not diffusers_path:
-    print("ERROR: diffusers not found", file=sys.stderr)
-    sys.exit(1)
-
-print(f"Found diffusers at: {diffusers_path}")
-
-results = []
-
-# Patch 1: connectors.py - replace the float64 line with float32
-connectors_path = os.path.join(diffusers_path, "pipelines", "ltx2", "connectors.py")
-result1 = patch_file_regex(
-    connectors_path,
-    r"(\\s*)freqs_dtype = torch\\.float64 if self\\.double_precision else torch\\.float32",
-    r"\\1# MPS fix: force float32 as MPS doesn't support float64\\n\\1freqs_dtype = torch.float32",
-    "connectors.py RoPE dtype"
-)
-results.append(result1)
-
-# Patch 2: transformer_ltx2.py - same fix
-transformer_path = os.path.join(diffusers_path, "models", "transformers", "transformer_ltx2.py")
-result2 = patch_file_regex(
-    transformer_path,
-    r"(\\s*)freqs_dtype = torch\\.float64 if self\\.double_precision else torch\\.float32",
-    r"\\1# MPS fix: force float32 as MPS doesn't support float64\\n\\1freqs_dtype = torch.float32",
-    "transformer_ltx2.py RoPE dtype"
-)
-results.append(result2)
-
-for r in results:
-    print(r)
-
-print("\\nMPS patch complete!")
-"""
-        
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: pythonExecutable)
-        process.arguments = ["-c", patchScript]
-        
-        var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
-        process.environment = env
-        
-        let stdoutPipe = Pipe()
-        let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
-        
-        do {
-            try process.run()
-            process.waitUntilExit()
-            
-            let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: outputData, encoding: .utf8) ?? ""
-            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
-            
-            if process.terminationStatus == 0 {
-                return (true, output)
-            } else {
-                return (false, "Patch failed:\n\(errorOutput)\n\(output)")
-            }
-        } catch {
-            return (false, "Failed to run patch: \(error.localizedDescription)")
         }
     }
     

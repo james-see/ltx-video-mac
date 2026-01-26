@@ -5,6 +5,30 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-01-26
+
+### Changed
+- **BREAKING**: Migrated from PyTorch/diffusers to native Apple MLX framework
+- Bundled MLX generation code (inspired by [mlx-video](https://github.com/Blaizzy/mlx-video))
+- Two-stage generation pipeline: half-resolution → upscale → full-resolution refinement
+- Model: `Lightricks/LTX-2` distilled variant (~10GB download, cached in ~/.cache/huggingface/)
+- Updated UI to show "MLX" badge instead of "MPS"
+- Python validation now checks for MLX dependencies (mlx, mlx-vlm, transformers, etc.)
+- Stage-aware progress display (Stage 1: 0-50%, Stage 2: 50-100%)
+
+### Added
+- Bundled `ltx_mlx` Python module with all generation code
+- Automatic model download progress display
+- Info note in Preferences: "Currently, only the distilled variant is supported"
+
+### Removed
+- Removed PyTorch/diffusers dependency
+- Removed MPS patching code (no longer needed with MLX)
+- Removed FP8 and dev model variants (distilled only for now)
+
+### Fixed
+- Closes GitHub issue #6 - Native Apple Silicon support via MLX
+
 ## [1.0.14] - 2026-01-26
 
 ### Fixed

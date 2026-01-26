@@ -23,7 +23,7 @@ enum LTXError: LocalizedError, Equatable {
     }
 }
 
-// Use subprocess to avoid PythonKit threading issues
+// Use subprocess to run MLX-based generation
 class LTXBridge {
     static let shared = LTXBridge()
     
@@ -49,26 +49,21 @@ class LTXBridge {
         
         switch pathType {
         case .executable:
-            // Direct executable path
             pythonExecutable = savedPath
-            // Try to find python home
             if let dylib = PythonEnvironment.shared.executableToDylib(savedPath),
                let home = PythonEnvironment.shared.extractPythonHome(from: dylib) {
                 pythonHome = home
             } else {
-                // Fallback: assume standard layout
                 let execURL = URL(fileURLWithPath: savedPath)
                 pythonHome = execURL.deletingLastPathComponent().deletingLastPathComponent().path
             }
             
         case .dylib:
-            // Dylib path - extract executable
             if let exec = PythonEnvironment.shared.dylibToExecutable(savedPath) {
                 pythonExecutable = exec
             }
             if let home = PythonEnvironment.shared.extractPythonHome(from: savedPath) {
                 pythonHome = home
-                // If we couldn't find executable, try standard location
                 if pythonExecutable == nil {
                     let standardExec = "\(home)/bin/python3"
                     if FileManager.default.isExecutableFile(atPath: standardExec) {
@@ -78,7 +73,6 @@ class LTXBridge {
             }
             
         case .unknown:
-            // Try to use it as executable if it exists and is executable
             if FileManager.default.isExecutableFile(atPath: savedPath) {
                 pythonExecutable = savedPath
                 let execURL = URL(fileURLWithPath: savedPath)
@@ -97,14 +91,13 @@ class LTXBridge {
             throw LTXError.pythonNotConfigured
         }
         
-        progressHandler("Checking Python environment...")
+        progressHandler("Checking MLX environment...")
         
-        // Test that we can import the required modules for LTX-2
-        // LTX2Pipeline requires diffusers installed from git
+        // Test that MLX and required packages are installed
         let testScript = """
-        import torch
-        from diffusers import LTX2Pipeline
-        from diffusers.pipelines.ltx2.export_utils import encode_video
+        import mlx.core as mx
+        import mlx_vlm
+        import transformers
         print("OK")
         """
         
@@ -113,7 +106,7 @@ class LTXBridge {
             throw LTXError.pythonNotConfigured
         }
         
-        progressHandler("Python environment ready. Model will load on first generation.")
+        progressHandler("MLX environment ready. Model will download on first generation (~10GB).")
         isModelLoaded = true
     }
     
@@ -132,10 +125,10 @@ class LTXBridge {
         let seed = params.seed ?? Int.random(in: 0..<Int(Int32.max))
         
         // Get selected model variant from preferences
-        let modelVariantRaw = UserDefaults.standard.string(forKey: "selectedModelVariant") ?? "full"
-        let modelVariant = LTXModelVariant(rawValue: modelVariantRaw) ?? .full
-        let subfolder = modelVariant.subfolder
-        let isDistilled = modelVariant == .distilled
+        let modelVariantRaw = UserDefaults.standard.string(forKey: "selectedModelVariant") ?? "distilled"
+        let modelVariant = LTXModelVariant(rawValue: modelVariantRaw) ?? .distilled
+        let modelRepo = modelVariant.modelRepo
+        let isDistilled = modelVariant.isDistilled
         
         let isImageToVideo = request.isImageToVideo
         let modeDescription = isImageToVideo ? "image-to-video" : "text-to-video"
@@ -143,11 +136,6 @@ class LTXBridge {
         
         // Escape the prompt for Python
         let escapedPrompt = request.prompt
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-            .replacingOccurrences(of: "\n", with: "\\n")
-        
-        let escapedNegative = request.negativePrompt
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
@@ -160,17 +148,37 @@ class LTXBridge {
         // Log file path
         let logFile = "/tmp/ltx_generation.log"
         
-        // Adjust guidance for distilled model (must be 1.0)
-        let effectiveGuidance = isDistilled ? 1.0 : params.guidanceScale
+        // Ensure dimensions are divisible by 64 for MLX
+        let genWidth = (params.width / 64) * 64
+        let genHeight = (params.height / 64) * 64
+        
+        // Get the bundled ltx_generator.py script path
+        let resourcesPath = Bundle.main.bundlePath + "/Contents/Resources"
+        let generatorScript = resourcesPath + "/ltx_generator.py"
+        
+        // Build arguments for the generator script
+        var scriptArgs = [
+            generatorScript,
+            "--prompt", request.prompt,
+            "--height", String(genHeight),
+            "--width", String(genWidth),
+            "--num-frames", String(params.numFrames),
+            "--seed", String(seed),
+            "--fps", String(params.fps),
+            "--output-path", outputPath,
+            "--model-repo", modelRepo,
+            "--tiling", "auto"
+        ]
+        
+        // Add image conditioning if provided
+        if isImageToVideo, let imagePath = request.sourceImagePath {
+            scriptArgs.append(contentsOf: ["--image", imagePath])
+        }
         
         let script = """
 import os
 import sys
 import json
-
-import torch
-from diffusers import LTX2Pipeline
-from diffusers.pipelines.ltx2.export_utils import encode_video
 
 # Set up file logging
 log_file = open("\(logFile)", "w")
@@ -179,119 +187,58 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 try:
-    log("=== LTX-2 Generation Started ===")
+    log("=== LTX-2 MLX Generation Started ===")
     log(f"Python: {sys.executable}")
-    log(f"Torch version: {torch.__version__}")
-    log(f"MPS available: {torch.backends.mps.is_available()}")
     
-    # Image-to-video: load source image if provided
-    source_image_path = "\(escapedImagePath)"
-    source_image = None
-    mode = "text-to-video"
-    if source_image_path:
-        from PIL import Image
-        source_image = Image.open(source_image_path).convert("RGB")
-        mode = "image-to-video"
-        log(f"Source image loaded: {source_image_path} ({source_image.size[0]}x{source_image.size[1]})")
+    # Add Resources directory to path for bundled ltx_mlx module
+    resources_dir = "\(resourcesPath)"
+    sys.path.insert(0, resources_dir)
     
+    # Check MLX
+    import mlx.core as mx
+    log(f"MLX device: Apple Silicon")
+    
+    # Import bundled generation module
+    from ltx_mlx.generate import generate_video
+    
+    model_repo = "\(modelRepo)"
+    log(f"Model: {model_repo}")
+    
+    # Image-to-video mode
+    source_image_path = "\(escapedImagePath)" if "\(escapedImagePath)" else None
+    mode = "image-to-video" if source_image_path else "text-to-video"
     log(f"Mode: {mode}")
-    log("Loading model...")
-    
-    model_repo = "Lightricks/LTX-2"
-    subfolder = "\(subfolder)"
-    log(f"Loading LTX-2 pipeline: {model_repo} / {subfolder}")
-    
-    # Use float16 for best MPS compatibility on Apple Silicon
-    # device_map=None prevents automatic CPU offloading - we want pure MPS
-    # Note: MPS float64 patch is applied during Python environment validation
-    pipe = LTX2Pipeline.from_pretrained(
-        model_repo,
-        subfolder=subfolder,
-        torch_dtype=torch.float16,
-        device_map=None,
-    )
-    
-    log("Moving to MPS (no CPU offload)...")
-    pipe.to("mps")
-    
-    # Verify pipeline is on MPS
-    log(f"Pipeline device: {pipe.device}")
-    log(f"Transformer device: {pipe.transformer.device}")
-    
-    log("Pipeline ready")
-    log("Generating video with audio...")
-    
-    # Ensure dimensions are divisible by 32 for proper alignment
-    gen_width = (\(params.width) // 32) * 32
-    gen_height = (\(params.height) // 32) * 32
-    # Frames must be 8n+1 for this model
-    gen_frames = ((\(params.numFrames) - 1) // 8) * 8 + 1
-    
-    log(f"Setting up generator with seed \(seed)...")
-    generator = torch.Generator(device="mps")
-    generator.manual_seed(\(seed))
     
     prompt = "\(escapedPrompt)"
-    negative_prompt = "\(escapedNegative)" if "\(escapedNegative)" else None
+    log(f"Prompt: {prompt[:100]}...")
+    log(f"Size: \(genWidth)x\(genHeight), \(params.numFrames) frames")
+    log(f"Seed: \(seed)")
     
-    # Distilled model uses CFG=1
-    is_distilled = \(isDistilled ? "True" : "False")
-    guidance = \(effectiveGuidance) if not is_distilled else 1.0
-    
-    log(f"Prompt: {prompt}")
-    log(f"Model: {subfolder}, Distilled: {is_distilled}")
-    log(f"Settings: steps=\(params.numInferenceSteps), guidance={guidance}, size={gen_width}x{gen_height}, frames={gen_frames}")
-    log("Starting pipeline...")
-    
-    # Synchronize MPS before generation
-    if torch.backends.mps.is_available():
-        torch.mps.synchronize()
-    
-    # Build pipeline arguments - only include image for image-to-video mode
-    pipe_kwargs = {
+    # Build generation kwargs
+    gen_kwargs = {
+        "model_repo": model_repo,
         "prompt": prompt,
-        "num_inference_steps": \(params.numInferenceSteps),
-        "guidance_scale": guidance,
-        "width": gen_width,
-        "height": gen_height,
-        "num_frames": gen_frames,
-        "frame_rate": float(\(params.fps)),
-        "generator": generator,
-        "output_type": "np",
-        "return_dict": False,
+        "height": \(genHeight),
+        "width": \(genWidth),
+        "num_frames": \(params.numFrames),
+        "seed": \(seed),
+        "fps": \(params.fps),
+        "output_path": "\(outputPath)",
+        "tiling": "auto",
     }
     
-    # Add optional parameters only when needed
-    if negative_prompt and not is_distilled:
-        pipe_kwargs["negative_prompt"] = negative_prompt
-    if source_image is not None:
-        pipe_kwargs["image"] = source_image
+    # Add image conditioning if provided
+    if source_image_path:
+        gen_kwargs["image"] = source_image_path
+        gen_kwargs["image_strength"] = 1.0
+        gen_kwargs["image_frame_idx"] = 0
+        log(f"Image conditioning: {source_image_path}")
     
-    # LTX-2 returns video and audio
-    video, audio = pipe(**pipe_kwargs)
+    log("Starting generation...")
+    generate_video(**gen_kwargs)
     
-    # Synchronize after generation
-    if torch.backends.mps.is_available():
-        torch.mps.synchronize()
-    
-    log(f"Pipeline complete. Video shape: {video.shape}")
-    
-    # Convert video to tensor format for encode_video
-    video = (video * 255).round().astype("uint8")
-    video_tensor = torch.from_numpy(video)
-    
-    log(f"Exporting video with audio to \(outputPath)...")
-    
-    # Export video with synchronized audio using LTX-2's encode_video
-    encode_video(
-        video_tensor[0],
-        fps=\(params.fps),
-        audio=audio[0].float().cpu(),
-        audio_sample_rate=pipe.vocoder.config.output_sampling_rate,
-        output_path="\(outputPath)",
-    )
-    
-    log("Export complete!")
+    log(f"Video saved to: \(outputPath)")
+    log("Generation complete!")
     log_file.close()
     print(json.dumps({"video_path": "\(outputPath)", "seed": \(seed), "mode": mode}))
 except Exception as e:
@@ -302,36 +249,66 @@ except Exception as e:
     sys.exit(1)
 """
         
-        progressHandler(0.2, "Running generation script...")
+        progressHandler(0.05, "Running MLX generation...")
         
-        let output = try await runPython(script: script, timeout: 600) { stderr in
+        let output = try await runPython(script: script, timeout: 3600) { stderr in
             DispatchQueue.main.async {
-                if stderr.contains("Loading pipeline") || stderr.contains("Loading checkpoint") {
-                    progressHandler(0.1, "Loading model...")
-                } else if stderr.contains("Moving to MPS") {
-                    progressHandler(0.2, "Moving to GPU...")
-                } else if stderr.contains("Fetching") {
-                    // Model download progress: "Fetching 55 files:  7%|▋ | 4/55"
+                // Parse structured progress output from generate.py
+                // Format: STAGE:X:STEP:Y:Z:message or STATUS:message or DOWNLOAD:START/COMPLETE:repo
+                
+                if stderr.hasPrefix("STAGE:") {
+                    // Parse stage-aware progress: STAGE:1:STEP:3:8:Denoising
+                    // Stage 1 maps to 0.1-0.5, Stage 2 maps to 0.5-0.9
+                    let parts = stderr.components(separatedBy: ":")
+                    if parts.count >= 5,
+                       let stage = Int(parts[1]),
+                       let step = Int(parts[3]),
+                       let total = Int(parts[4]) {
+                        let stageProgress = Double(step) / Double(total)
+                        let mappedProgress: Double
+                        let message: String
+                        
+                        if stage == 1 {
+                            // Stage 1: 0.1 to 0.5 (half resolution)
+                            mappedProgress = 0.1 + (stageProgress * 0.4)
+                            message = "Stage 1 (\(step)/\(total)): Generating at half resolution"
+                        } else {
+                            // Stage 2: 0.5 to 0.9 (full resolution)
+                            mappedProgress = 0.5 + (stageProgress * 0.4)
+                            message = "Stage 2 (\(step)/\(total)): Refining at full resolution"
+                        }
+                        progressHandler(mappedProgress, message)
+                    }
+                } else if stderr.hasPrefix("STATUS:") {
+                    // Parse status message: STATUS:Loading model...
+                    let message = String(stderr.dropFirst(7))
+                    if message.contains("Stage 1") {
+                        progressHandler(0.1, message)
+                    } else if message.contains("Stage 2") || message.contains("Upsampling") {
+                        progressHandler(0.5, message)
+                    } else if message.contains("Decoding") {
+                        progressHandler(0.9, message)
+                    } else if message.contains("Saving") {
+                        progressHandler(0.95, message)
+                    } else if message.contains("Loading") {
+                        progressHandler(0.08, message)
+                    } else {
+                        progressHandler(0.05, message)
+                    }
+                } else if stderr.hasPrefix("DOWNLOAD:START:") {
+                    let repo = String(stderr.dropFirst(15))
+                    progressHandler(0.02, "Downloading model: \(repo) (~10GB)")
+                } else if stderr.hasPrefix("DOWNLOAD:COMPLETE:") {
+                    progressHandler(0.08, "Model download complete")
+                } else if stderr.contains("Downloading") || stderr.contains("Fetching") {
+                    // Fallback for tqdm/huggingface_hub progress
                     if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
                         let currentFile = Int(match.2) ?? 0
                         let totalFiles = Int(match.3) ?? 1
                         let percent = Double(currentFile) / Double(totalFiles)
-                        // Map to 0.05-0.15 range (download is early phase)
-                        let mappedProgress = 0.05 + (percent * 0.1)
-                        progressHandler(mappedProgress, "Downloading model: \(currentFile)/\(totalFiles) files")
+                        let mappedProgress = 0.02 + (percent * 0.06)
+                        progressHandler(mappedProgress, "Downloading: \(currentFile)/\(totalFiles) files")
                     }
-                } else if stderr.contains("Starting pipeline") {
-                    progressHandler(0.25, "Starting generation...")
-                } else if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
-                    // Generation progress like "12%|█▏        | 3/25"
-                    let currentStep = Int(match.2) ?? 0
-                    let totalSteps = Int(match.3) ?? 1
-                    let percent = Double(currentStep) / Double(totalSteps)
-                    // Map to 0.3-0.9 range (leaving room for load/export)
-                    let mappedProgress = 0.3 + (percent * 0.6)
-                    progressHandler(mappedProgress, "Generating: \(currentStep)/\(totalSteps) steps")
-                } else if stderr.contains("Exporting") {
-                    progressHandler(0.95, "Exporting video...")
                 }
             }
         }
@@ -369,26 +346,19 @@ except Exception as e:
                 process.executableURL = URL(fileURLWithPath: python)
                 process.arguments = ["-c", script]
                 
-                // Use a CLEAN environment like terminal - GUI app environment can interfere with MPS
+                // Clean environment for MLX
                 var env: [String: String] = [:]
                 
-                // Essential paths only
                 let pythonBin = URL(fileURLWithPath: python).deletingLastPathComponent().path
-                env["PATH"] = "\(pythonBin):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                env["PATH"] = "\(pythonBin):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin"
                 env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
                 env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
                 env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
                 
-                // Inherit library paths for dynamic libraries
-                if let dylibPath = ProcessInfo.processInfo.environment["DYLD_LIBRARY_PATH"] {
-                    env["DYLD_LIBRARY_PATH"] = dylibPath
+                // MLX uses Metal - inherit any Metal-related env vars
+                if let metalDevice = ProcessInfo.processInfo.environment["MTL_DEVICE_WRAPPER_TYPE"] {
+                    env["MTL_DEVICE_WRAPPER_TYPE"] = metalDevice
                 }
-                
-                // Metal/MPS - use defaults, don't inherit app's GPU state
-                env["MTL_ENABLE_DEBUG_INFO"] = "0"
-                
-                // Allow PyTorch MPS to use all available unified memory (disable 70% limit)
-                env["PYTORCH_MPS_HIGH_WATERMARK_RATIO"] = "0.0"
                 
                 process.environment = env
                 
@@ -397,11 +367,9 @@ except Exception as e:
                 process.standardOutput = stdoutPipe
                 process.standardError = stderrPipe
                 
-                // Accumulate stderr for logging
                 var stderrAccumulated = ""
                 let stderrLock = NSLock()
                 
-                // Handle stderr for progress and logging
                 stderrPipe.fileHandleForReading.readabilityHandler = { handle in
                     let data = handle.availableData
                     if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
@@ -409,7 +377,6 @@ except Exception as e:
                         stderrAccumulated += str
                         stderrLock.unlock()
                         
-                        // Write to log file
                         if let logData = ("[STDERR] " + str).data(using: .utf8) {
                             if FileManager.default.fileExists(atPath: logFile) {
                                 if let handle = FileHandle(forWritingAtPath: logFile) {
@@ -427,8 +394,7 @@ except Exception as e:
                 }
                 
                 do {
-                    // Log start
-                    let startLog = "=== LTX Process Started ===\nPython: \(python)\nTime: \(Date())\n"
+                    let startLog = "=== LTX MLX Process Started ===\nPython: \(python)\nTime: \(Date())\n"
                     try? startLog.write(toFile: logFile, atomically: false, encoding: .utf8)
                     
                     try process.run()
@@ -439,7 +405,6 @@ except Exception as e:
                     let outputData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
                     let output = String(data: outputData, encoding: .utf8) ?? ""
                     
-                    // Log output
                     let outputLog = "\n[STDOUT] \(output)\n[EXIT CODE] \(process.terminationStatus)\n"
                     if let handle = FileHandle(forWritingAtPath: logFile) {
                         handle.seekToEndOfFile()
@@ -447,23 +412,19 @@ except Exception as e:
                         handle.closeFile()
                     }
                     
-                    // Check for valid JSON output first - if we got valid output, ignore exit code
                     let trimmedOutput = output.trimmingCharacters(in: .whitespacesAndNewlines)
                     if let data = trimmedOutput.data(using: .utf8),
                        let _ = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                        // Valid JSON output - success regardless of exit code (warnings may cause non-zero)
                         continuation.resume(returning: trimmedOutput)
                         return
                     }
                     
                     if process.terminationStatus != 0 {
-                        // Filter out harmless warnings
                         stderrLock.lock()
                         let stderr = stderrAccumulated
                         stderrLock.unlock()
                         
-                        // If stderr only contains known harmless warnings, check if we have output
-                        let harmlessPatterns = ["resource_tracker", "semaphore", "UserWarning"]
+                        let harmlessPatterns = ["UserWarning", "FutureWarning"]
                         let isOnlyHarmless = harmlessPatterns.allSatisfy { stderr.contains($0) } ||
                                             stderr.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         
@@ -476,7 +437,6 @@ except Exception as e:
                         continuation.resume(returning: trimmedOutput)
                     }
                 } catch {
-                    // Log error
                     let errorLog = "\n[ERROR] \(error.localizedDescription)\n"
                     if let handle = FileHandle(forWritingAtPath: logFile) {
                         handle.seekToEndOfFile()

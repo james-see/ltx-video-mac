@@ -1,51 +1,42 @@
 import SwiftUI
 
 enum LTXModelVariant: String, CaseIterable, Identifiable {
-    case full = "full"
     case distilled = "distilled"
-    case fp8 = "fp8"
     
     var id: String { rawValue }
     
     var displayName: String {
         switch self {
-        case .full: return "LTX-2 Full (19B)"
-        case .distilled: return "LTX-2 Distilled (Fast)"
-        case .fp8: return "LTX-2 FP8 (Low Memory)"
+        case .distilled: return "LTX-2 Distilled"
         }
     }
     
     var description: String {
         switch self {
-        case .full: return "Best quality, requires ~20GB unified memory"
-        case .distilled: return "8 steps only, much faster, good for previews"
-        case .fp8: return "Quantized model, lower memory usage"
+        case .distilled: return "2-stage generation, optimized for Apple Silicon (~10GB download)"
         }
     }
     
-    var modelRepo: String { "Lightricks/LTX-2" }
-    
-    var subfolder: String {
+    var modelRepo: String {
         switch self {
-        case .full: return "ltx-2-19b-dev"
-        case .distilled: return "ltx-2-19b-distilled"
-        case .fp8: return "ltx-2-19b-dev-fp8"
+        case .distilled: return "Lightricks/LTX-2"
         }
     }
     
     var recommendedSteps: Int {
         switch self {
-        case .full: return 40
         case .distilled: return 8
-        case .fp8: return 40
         }
     }
     
     var recommendedGuidance: Double {
         switch self {
         case .distilled: return 1.0  // CFG=1 for distilled
-        default: return 4.0
         }
+    }
+    
+    var isDistilled: Bool {
+        return true
     }
 }
 
@@ -102,7 +93,7 @@ struct PreferencesView: View {
                             ProgressView()
                                 .scaleEffect(0.7)
                             Text(isDetecting ? "Searching for Python installations..." : 
-                                 isInstalling ? "Installing diffusers from git (this may take a minute)..." :
+                                 isInstalling ? "Installing MLX packages..." :
                                  "Validating Python setup...")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -125,40 +116,30 @@ struct PreferencesView: View {
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
-                                    if let dylib = details.dylibPath {
-                                        Text("Library: \(dylib)")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                    if details.hasMLX {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "checkmark.seal.fill")
+                                                .foregroundStyle(.green)
+                                            Text("MLX Ready")
+                                                .font(.caption2)
+                                                .foregroundStyle(.green)
+                                        }
+                                        .padding(.leading, 20)
                                     }
                                 }
                                 .padding(.leading, 20)
                                 
-                                // Offer to install diffusers from git
-                                if details.needsDiffusersGit {
-                                    HStack {
-                                        Button("Install LTX-2 Support") {
-                                            installDiffusersFromGit(pythonPath: details.executablePath)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        
-                                        Text("Installs diffusers from git")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding(.top, 4)
-                                }
-                                
                                 // Offer to install missing packages
                                 if !details.missingPackages.isEmpty {
-                                    HStack {
-                                        Button("Install Missing Packages") {
-                                            installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages)
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        
-                                        Text("Installs: \(details.missingPackages.joined(separator: ", "))")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("Install missing packages:")
+                                            .font(.caption.bold())
+                                        Text("pip install \(details.missingPackages.joined(separator: " "))")
+                                            .font(.caption.monospaced())
+                                            .textSelection(.enabled)
+                                            .padding(6)
+                                            .background(Color.secondary.opacity(0.1))
+                                            .cornerRadius(4)
                                     }
                                     .padding(.top, 4)
                                 }
@@ -205,11 +186,35 @@ struct PreferencesView: View {
                             .foregroundStyle(.secondary)
                     }
                     
+                    // Info about distilled-only support
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Currently, only the distilled variant is supported.")
+                                .font(.caption)
+                            Text("Full LTX-2 feature support is coming in future updates.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    
                     Toggle("Auto-load model on startup", isOn: $autoLoadModel)
                     
-                    Text("Models are downloaded on first use from HuggingFace")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    // Model download info
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Model Download")
+                                .font(.caption.bold())
+                            Text("LTX-2 model (~10GB) will download automatically on first generation. Models are cached in ~/.cache/huggingface/")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
                 }
                 
                 Section("Storage") {
@@ -263,7 +268,7 @@ struct PreferencesView: View {
                     .font(.title)
                     .bold()
                 
-                Text("Version 1.0.14")
+                Text("Version 2.0.0")
                     .foregroundStyle(.secondary)
                 
                 Divider()
@@ -399,27 +404,6 @@ struct PreferencesView: View {
                 // If validation succeeded and we have details, configure for PythonKit
                 if result.success, let details = result.details {
                     PythonEnvironment.shared.configureForPythonKit(details: details)
-                }
-            }
-        }
-    }
-    
-    private func installDiffusersFromGit(pythonPath: String) {
-        isInstalling = true
-        installMessage = nil
-        
-        Task {
-            let result = await PythonEnvironment.shared.installDiffusersFromGit(pythonExecutable: pythonPath)
-            
-            await MainActor.run {
-                isInstalling = false
-                
-                if result.success {
-                    installMessage = "Installation successful! Re-validating..."
-                    // Re-validate after install
-                    validatePython()
-                } else {
-                    installMessage = "Install failed: \(result.message)"
                 }
             }
         }
