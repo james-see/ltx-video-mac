@@ -263,7 +263,7 @@ struct PreferencesView: View {
                     .font(.title)
                     .bold()
                 
-                Text("Version 1.0.10")
+                Text("Version 1.0.11")
                     .foregroundStyle(.secondary)
                 
                 Divider()

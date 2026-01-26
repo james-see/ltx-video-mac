@@ -5,6 +5,18 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-01-26
+
+### Added
+- Model variant indicator in sidebar showing current model (Full/Distilled/FP8)
+- MPS badge confirming Metal GPU acceleration is active
+- Device verification logging to confirm pipeline is on MPS
+
+### Fixed
+- Enforce pure MPS execution with `device_map=None` to prevent CPU offloading
+- Text-to-video mode no longer passes `image` parameter (was causing pipeline error)
+- Progress UI now distinguishes model download from generation steps
+
 ## [1.0.10] - 2026-01-26
 
 ### Added
