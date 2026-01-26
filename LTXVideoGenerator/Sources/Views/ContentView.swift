@@ -126,9 +126,29 @@ struct SidebarButton: View {
 struct ModelStatusView: View {
     @EnvironmentObject var generationService: GenerationService
     @StateObject private var apiServer = APIServer.shared
+    @AppStorage("selectedModelVariant") private var selectedModelVariant = "full"
+    
+    private var currentModelVariant: LTXModelVariant {
+        LTXModelVariant(rawValue: selectedModelVariant) ?? .full
+    }
     
     var body: some View {
         VStack(spacing: 8) {
+            // Model variant indicator
+            HStack(spacing: 6) {
+                Image(systemName: "cpu")
+                    .foregroundStyle(.blue)
+                Text(currentModelVariant.displayName)
+                    .font(.caption.bold())
+                Spacer()
+                Text("MPS")
+                    .font(.caption2.monospaced())
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.green.opacity(0.2)))
+                    .foregroundStyle(.green)
+            }
+            
             // Model status
             HStack(spacing: 8) {
                 Circle()

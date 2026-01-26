@@ -202,14 +202,20 @@ try:
     log(f"Loading LTX-2 pipeline: {model_repo} / {subfolder}")
     
     # Use float16 for best MPS compatibility on Apple Silicon
+    # device_map=None prevents automatic CPU offloading - we want pure MPS
     pipe = LTX2Pipeline.from_pretrained(
         model_repo,
         subfolder=subfolder,
-        torch_dtype=torch.float16
+        torch_dtype=torch.float16,
+        device_map=None,
     )
     
-    log("Moving to MPS...")
+    log("Moving to MPS (no CPU offload)...")
     pipe.to("mps")
+    
+    # Verify pipeline is on MPS
+    log(f"Pipeline device: {pipe.device}")
+    log(f"Transformer device: {pipe.transformer.device}")
     
     log("Pipeline ready")
     log("Generating video with audio...")
@@ -240,22 +246,28 @@ try:
     if torch.backends.mps.is_available():
         torch.mps.synchronize()
     
+    # Build pipeline arguments - only include image for image-to-video mode
+    pipe_kwargs = {
+        "prompt": prompt,
+        "num_inference_steps": \(params.numInferenceSteps),
+        "guidance_scale": guidance,
+        "width": gen_width,
+        "height": gen_height,
+        "num_frames": gen_frames,
+        "frame_rate": float(\(params.fps)),
+        "generator": generator,
+        "output_type": "np",
+        "return_dict": False,
+    }
+    
+    # Add optional parameters only when needed
+    if negative_prompt and not is_distilled:
+        pipe_kwargs["negative_prompt"] = negative_prompt
+    if source_image is not None:
+        pipe_kwargs["image"] = source_image
+    
     # LTX-2 returns video and audio
-    # Pass source_image for image-to-video mode (None for text-to-video)
-    video, audio = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt if not is_distilled else None,
-        image=source_image,
-        num_inference_steps=\(params.numInferenceSteps),
-        guidance_scale=guidance,
-        width=gen_width,
-        height=gen_height,
-        num_frames=gen_frames,
-        frame_rate=float(\(params.fps)),
-        generator=generator,
-        output_type="np",
-        return_dict=False,
-    )
+    video, audio = pipe(**pipe_kwargs)
     
     # Synchronize after generation
     if torch.backends.mps.is_available():
@@ -297,8 +309,20 @@ except Exception as e:
                     progressHandler(0.1, "Loading model...")
                 } else if stderr.contains("Moving to MPS") {
                     progressHandler(0.2, "Moving to GPU...")
+                } else if stderr.contains("Fetching") {
+                    // Model download progress: "Fetching 55 files:  7%|▋ | 4/55"
+                    if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
+                        let currentFile = Int(match.2) ?? 0
+                        let totalFiles = Int(match.3) ?? 1
+                        let percent = Double(currentFile) / Double(totalFiles)
+                        // Map to 0.05-0.15 range (download is early phase)
+                        let mappedProgress = 0.05 + (percent * 0.1)
+                        progressHandler(mappedProgress, "Downloading model: \(currentFile)/\(totalFiles) files")
+                    }
+                } else if stderr.contains("Starting pipeline") {
+                    progressHandler(0.25, "Starting generation...")
                 } else if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
-                    // Parse progress like "12%|█▏        | 3/25"
+                    // Generation progress like "12%|█▏        | 3/25"
                     let currentStep = Int(match.2) ?? 0
                     let totalSteps = Int(match.3) ?? 1
                     let percent = Double(currentStep) / Double(totalSteps)
