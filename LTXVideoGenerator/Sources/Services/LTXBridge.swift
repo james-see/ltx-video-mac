@@ -100,9 +100,11 @@ class LTXBridge {
         progressHandler("Checking Python environment...")
         
         // Test that we can import the required modules for LTX-2
+        // LTX2Pipeline requires diffusers installed from git
         let testScript = """
         import torch
         from diffusers import LTX2Pipeline
+        from diffusers.pipelines.ltx2.export_utils import encode_video
         print("OK")
         """
         

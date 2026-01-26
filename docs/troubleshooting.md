@@ -51,10 +51,24 @@ which python3
 # Activate your environment first
 source ~/ltx-venv/bin/activate
 
-# Install missing packages
-pip install torch diffusers accelerate transformers
-pip install safetensors sentencepiece
+# IMPORTANT: Install diffusers from git for LTX-2 support
+pip install git+https://github.com/huggingface/diffusers.git
+
+# Install other packages
+pip install torch accelerate transformers
+pip install safetensors sentencepiece numpy
 pip install imageio imageio-ffmpeg opencv-python
+```
+
+### "cannot import name 'LTX2Pipeline'"
+
+**Problem:** diffusers installed from PyPI doesn't have LTX-2 support yet.
+
+**Solution:**
+```bash
+# Uninstall PyPI version and install from git
+pip uninstall diffusers
+pip install git+https://github.com/huggingface/diffusers.git
 ```
 
 ### "MPS not available"

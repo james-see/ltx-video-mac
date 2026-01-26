@@ -1,8 +1,12 @@
 # LTX Video Generator - Python Dependencies
-# Install with: pip install -r requirements.txt
+# 
+# IMPORTANT: LTX-2 requires diffusers from git (not PyPI release yet)
+# Install with:
+#   pip install git+https://github.com/huggingface/diffusers.git
+#   pip install -r requirements.txt
 
 torch>=2.1.2
-diffusers>=0.36.0
+# diffusers - install from git: pip install git+https://github.com/huggingface/diffusers.git
 transformers>=4.45.0
 accelerate>=0.25.0
 safetensors>=0.4.0

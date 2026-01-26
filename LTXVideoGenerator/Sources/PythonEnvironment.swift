@@ -231,7 +231,17 @@ class PythonEnvironment {
             }
         }
         
-        let hasRequired = missingPackages.isEmpty
+        // Step 8: Check specifically for LTX2Pipeline (requires diffusers from git)
+        var needsDiffusersGit = false
+        if missingPackages.isEmpty {
+            let ltx2Check = "from diffusers import LTX2Pipeline; print('OK')"
+            let ltx2Result = runPythonSync(executable: executablePath, script: ltx2Check)
+            if ltx2Result == nil || !ltx2Result!.contains("OK") {
+                needsDiffusersGit = true
+            }
+        }
+        
+        let hasRequired = missingPackages.isEmpty && !needsDiffusersGit
         
         let details = PythonDetails(
             version: version,
@@ -242,9 +252,13 @@ class PythonEnvironment {
             missingPackages: missingPackages
         )
         
-        if !hasRequired {
+        if !missingPackages.isEmpty {
             let pipCommand = "pip install \(missingPackages.joined(separator: " "))"
             return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details)
+        }
+        
+        if needsDiffusersGit {
+            return (false, "Python \(version) found but LTX-2 support requires diffusers from git. Run: pip install git+https://github.com/huggingface/diffusers.git", details)
         }
         
         return (true, "Python \(version) configured successfully with all required packages", details)

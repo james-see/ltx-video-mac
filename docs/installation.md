@@ -41,16 +41,22 @@ source ~/ltx-venv/bin/activate
 # Install PyTorch with MPS support
 pip install torch torchvision torchaudio
 
-# Install diffusers 0.36.0+ (required for LTX-2)
-pip install "diffusers>=0.36.0" accelerate transformers safetensors sentencepiece
+# IMPORTANT: LTX-2 requires diffusers from git (not released to PyPI yet)
+pip install git+https://github.com/huggingface/diffusers.git
 
-# Install video export dependencies
-pip install imageio imageio-ffmpeg opencv-python numpy
+# Install other dependencies
+pip install accelerate transformers safetensors sentencepiece numpy
+
+# Install video export dependencies  
+pip install imageio imageio-ffmpeg opencv-python
 
 # Verify installation
 python -c "import torch; print(f'PyTorch {torch.__version__}, MPS: {torch.backends.mps.is_available()}')"
 python -c "from diffusers import LTX2Pipeline; print('LTX2Pipeline OK')"
 ```
+
+{: .warning }
+LTX-2 support is in the diffusers development branch. You **must** install from git, not pip.
 
 ### Option 2: Using pyenv
 
