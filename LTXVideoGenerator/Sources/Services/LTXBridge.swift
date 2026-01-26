@@ -342,7 +342,7 @@ except Exception as e:
             }
         }
         
-        throw LTXError.generationFailed("Failed to parse generation output: \(output) and log: \(errorOutput)")
+        throw LTXError.generationFailed("Failed to parse generation output: \(output)")
     }
     
     func unloadModel() async {
