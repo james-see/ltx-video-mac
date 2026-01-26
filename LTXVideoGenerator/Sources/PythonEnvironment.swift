@@ -318,51 +318,113 @@ class PythonEnvironment {
     
     // MARK: - Comprehensive Path Discovery
     
-    /// Find Python installations on the system
+    /// Check if a Python path is in a virtual environment (can pip install freely)
+    func isVirtualEnvironment(_ path: String) -> Bool {
+        // Check for pyvenv.cfg file which indicates a venv
+        let binDir = URL(fileURLWithPath: path).deletingLastPathComponent().path
+        let venvDir = URL(fileURLWithPath: binDir).deletingLastPathComponent().path
+        let pyvenvCfg = "\(venvDir)/pyvenv.cfg"
+        
+        if FileManager.default.fileExists(atPath: pyvenvCfg) {
+            return true
+        }
+        
+        // Also check for conda env indicator
+        let condaMeta = "\(venvDir)/conda-meta"
+        if FileManager.default.fileExists(atPath: condaMeta) {
+            return true
+        }
+        
+        // pyenv virtualenvs
+        if path.contains(".pyenv/versions") && path.contains("/envs/") {
+            return true
+        }
+        
+        // Common venv directory names
+        let venvIndicators = ["/venv/", "/env/", "/.venv/", "/ltx-venv/", "/ltx-env/", "/virtualenv/"]
+        for indicator in venvIndicators {
+            if path.contains(indicator) {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /// Get the recommended venv path for LTX
+    func getRecommendedVenvPath() -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return "\(home)/ltx-venv"
+    }
+    
+    /// Create a virtual environment for LTX
+    func createVirtualEnvironment(basePython: String, venvPath: String) async -> (success: Bool, message: String, pythonPath: String?) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: basePython)
+        process.arguments = ["-m", "venv", venvPath]
+        
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
+        
+        do {
+            try process.run()
+            process.waitUntilExit()
+            
+            let errorData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+            let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+            
+            if process.terminationStatus == 0 {
+                let venvPython = "\(venvPath)/bin/python3"
+                if FileManager.default.isExecutableFile(atPath: venvPython) {
+                    return (true, "Virtual environment created at \(venvPath)", venvPython)
+                } else {
+                    return (false, "Venv created but python3 not found", nil)
+                }
+            } else {
+                return (false, "Failed to create venv: \(errorOutput)", nil)
+            }
+        } catch {
+            return (false, "Failed to create venv: \(error.localizedDescription)", nil)
+        }
+    }
+    
+    /// Find Python installations on the system - prioritizes venvs over system Python
     func discoverPythonPaths() -> [String] {
-        var paths: [String] = []
+        var venvPaths: [String] = []
+        var systemPaths: [String] = []
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser.path
         
-        // Homebrew Apple Silicon
-        let homebrewArm = "/opt/homebrew"
-        for version in ["3.13", "3.12", "3.11", "3.10"] {
-            let exec = "\(homebrewArm)/opt/python@\(version)/bin/python\(version)"
+        // FIRST: Check for existing venvs (these are preferred!)
+        let commonVenvNames = ["ltx-venv", "ltx-env", "venv", "env", ".venv", "pytorch-env", "mlx-env"]
+        for venvName in commonVenvNames {
+            let exec = "\(home)/\(venvName)/bin/python3"
             if fm.isExecutableFile(atPath: exec) {
-                paths.append(exec)
-            }
-            // Also check Frameworks path for dylib
-            let dylib = "\(homebrewArm)/opt/python@\(version)/Frameworks/Python.framework/Versions/\(version)/lib/libpython\(version).dylib"
-            if fm.fileExists(atPath: dylib) && !paths.contains(where: { extractPythonVersion(from: $0) == version }) {
-                paths.append(dylib)
+                venvPaths.append(exec)
             }
         }
         
-        // Homebrew Intel
-        let homebrewIntel = "/usr/local"
-        for version in ["3.13", "3.12", "3.11", "3.10"] {
-            let exec = "\(homebrewIntel)/opt/python@\(version)/bin/python\(version)"
-            if fm.isExecutableFile(atPath: exec) {
-                paths.append(exec)
-            }
-            let dylib = "\(homebrewIntel)/opt/python@\(version)/Frameworks/Python.framework/Versions/\(version)/lib/libpython\(version).dylib"
-            if fm.fileExists(atPath: dylib) && !paths.contains(where: { extractPythonVersion(from: $0) == version }) {
-                paths.append(dylib)
-            }
-        }
-        
-        // pyenv versions
+        // pyenv virtualenvs (not base versions)
         let pyenvRoot = "\(home)/.pyenv/versions"
         if let versions = try? fm.contentsOfDirectory(atPath: pyenvRoot) {
             for version in versions.sorted().reversed() {
-                let exec = "\(pyenvRoot)/\(version)/bin/python3"
-                if fm.isExecutableFile(atPath: exec) {
-                    paths.append(exec)
+                // Check if it's a virtualenv (has envs subdir or is in envs)
+                let envExec = "\(pyenvRoot)/\(version)/bin/python3"
+                if fm.isExecutableFile(atPath: envExec) {
+                    if version.contains("-") || fm.fileExists(atPath: "\(pyenvRoot)/\(version)/pyvenv.cfg") {
+                        // Likely a virtualenv
+                        venvPaths.append(envExec)
+                    } else {
+                        // Base pyenv version
+                        systemPaths.append(envExec)
+                    }
                 }
             }
         }
         
-        // Conda/Miniconda/Anaconda
+        // Conda environments
         let condaPaths = [
             "\(home)/miniconda3",
             "\(home)/anaconda3",
@@ -372,19 +434,35 @@ class PythonEnvironment {
             "/opt/anaconda3"
         ]
         for condaBase in condaPaths {
-            let exec = "\(condaBase)/bin/python3"
-            if fm.isExecutableFile(atPath: exec) {
-                paths.append(exec)
-            }
-            // Also check envs
+            // Named conda envs first (these are like venvs)
             let envsPath = "\(condaBase)/envs"
             if let envs = try? fm.contentsOfDirectory(atPath: envsPath) {
                 for env in envs {
                     let envExec = "\(envsPath)/\(env)/bin/python3"
                     if fm.isExecutableFile(atPath: envExec) {
-                        paths.append(envExec)
+                        venvPaths.append(envExec)
                     }
                 }
+            }
+            // Base conda (externally managed)
+            let exec = "\(condaBase)/bin/python3"
+            if fm.isExecutableFile(atPath: exec) {
+                systemPaths.append(exec)
+            }
+        }
+        
+        // SECOND: System/Homebrew Python (externally managed - pip install restricted)
+        let homebrewArm = "/opt/homebrew"
+        let homebrewIntel = "/usr/local"
+        
+        for version in ["3.13", "3.12", "3.11", "3.10"] {
+            let execArm = "\(homebrewArm)/opt/python@\(version)/bin/python\(version)"
+            if fm.isExecutableFile(atPath: execArm) {
+                systemPaths.append(execArm)
+            }
+            let execIntel = "\(homebrewIntel)/opt/python@\(version)/bin/python\(version)"
+            if fm.isExecutableFile(atPath: execIntel) {
+                systemPaths.append(execIntel)
             }
         }
         
@@ -394,66 +472,81 @@ class PythonEnvironment {
             for version in versions.sorted().reversed() where version != "Current" {
                 let exec = "\(libraryFrameworks)/\(version)/bin/python3"
                 if fm.isExecutableFile(atPath: exec) {
-                    paths.append(exec)
+                    systemPaths.append(exec)
                 }
             }
         }
         
-        // Common virtualenv locations in home directory
-        let commonVenvNames = ["venv", "env", ".venv", "ltx-venv", "ltx-env", "pytorch-env"]
-        for venvName in commonVenvNames {
-            let exec = "\(home)/\(venvName)/bin/python3"
-            if fm.isExecutableFile(atPath: exec) {
-                paths.append(exec)
-            }
-        }
-        
-        // System Python (usually not recommended but might work)
-        if fm.isExecutableFile(atPath: "/usr/bin/python3") {
-            paths.append("/usr/bin/python3")
-        }
-        
         // Generic homebrew python3
         for path in ["\(homebrewArm)/bin/python3", "\(homebrewIntel)/bin/python3"] {
-            if fm.isExecutableFile(atPath: path) && !paths.contains(path) {
-                paths.append(path)
+            if fm.isExecutableFile(atPath: path) && !systemPaths.contains(path) {
+                systemPaths.append(path)
             }
         }
         
-        return paths
+        // System Python (last resort)
+        if fm.isExecutableFile(atPath: "/usr/bin/python3") {
+            systemPaths.append("/usr/bin/python3")
+        }
+        
+        // Return venvs first, then system paths
+        return venvPaths + systemPaths
     }
     
     /// Auto-detect and validate the best Python installation
+    /// Prioritizes: 1) Working venvs, 2) Venvs with missing packages, 3) System Python
     func autoDetectPython() async -> (path: String?, result: (success: Bool, message: String, details: PythonDetails?)) {
         let candidates = discoverPythonPaths()
         
         if candidates.isEmpty {
-            return (nil, (false, "No Python installations found. Please install Python 3.10+ with PyTorch and diffusers.", nil))
+            return (nil, (false, "No Python installations found. Please install Python 3.10+.", nil))
         }
         
-        // Try each candidate, prefer ones with required packages
-        var bestCandidate: (path: String, result: (success: Bool, message: String, details: PythonDetails?))? = nil
+        // Separate venvs from system Python
+        var venvCandidates: [(path: String, result: (success: Bool, message: String, details: PythonDetails?))] = []
+        var systemCandidates: [(path: String, result: (success: Bool, message: String, details: PythonDetails?))] = []
         
         for path in candidates {
             let result = await validateWithSubprocess(path: path)
+            let isVenv = isVirtualEnvironment(path)
             
             if result.success {
-                // Found a fully working installation
-                return (path, result)
-            }
-            
-            // Keep track of best partial match (has Python, just missing packages)
-            if result.details != nil && bestCandidate == nil {
-                bestCandidate = (path, result)
+                // Found a fully working installation - prefer venv
+                if isVenv {
+                    return (path, result)
+                }
+                // Keep system Python as fallback
+                systemCandidates.append((path, result))
+            } else if result.details != nil {
+                // Has Python but missing packages
+                if isVenv {
+                    venvCandidates.append((path, result))
+                } else {
+                    systemCandidates.append((path, result))
+                }
             }
         }
         
-        // Return best partial match if no fully working installation found
-        if let best = bestCandidate {
-            return (best.path, best.result)
+        // Return first working system Python if no venvs work
+        if let workingSystem = systemCandidates.first(where: { $0.result.success }) {
+            return (workingSystem.path, workingSystem.result)
         }
         
-        return (nil, (false, "Found \(candidates.count) Python installation(s) but none are compatible. Please install Python 3.10+ with PyTorch and diffusers.", nil))
+        // Return venv with missing packages (can pip install freely)
+        if let venv = venvCandidates.first {
+            return (venv.path, venv.result)
+        }
+        
+        // Return system Python with missing packages (will need venv creation)
+        if let system = systemCandidates.first {
+            var result = system.result
+            if !isVirtualEnvironment(system.path) {
+                result.message = result.message + " (Note: This is a system Python - a virtual environment is recommended for package installation)"
+            }
+            return (system.path, result)
+        }
+        
+        return (nil, (false, "Found \(candidates.count) Python installation(s) but none are compatible. Please install Python 3.10+.", nil))
     }
     
     // MARK: - Package Installation

@@ -131,23 +131,51 @@ struct PreferencesView: View {
                                 
                                 // Offer to install missing packages
                                 if !details.missingPackages.isEmpty {
+                                    let isVenv = PythonEnvironment.shared.isVirtualEnvironment(details.executablePath)
+                                    
                                     VStack(alignment: .leading, spacing: 8) {
-                                        Text("Install missing packages:")
-                                            .font(.caption.bold())
-                                        
-                                        HStack {
-                                            Text("pip install \(details.missingPackages.joined(separator: " "))")
-                                                .font(.caption.monospaced())
-                                                .textSelection(.enabled)
-                                                .padding(6)
-                                                .background(Color.secondary.opacity(0.1))
-                                                .cornerRadius(4)
+                                        if isVenv {
+                                            // Can install directly to venv
+                                            Text("Install missing packages:")
+                                                .font(.caption.bold())
                                             
-                                            Button("Install") {
-                                                installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages)
+                                            HStack {
+                                                Text("pip install \(details.missingPackages.joined(separator: " "))")
+                                                    .font(.caption.monospaced())
+                                                    .textSelection(.enabled)
+                                                    .padding(6)
+                                                    .background(Color.secondary.opacity(0.1))
+                                                    .cornerRadius(4)
+                                                
+                                                Button("Install") {
+                                                    installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages)
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                                .disabled(isInstalling)
+                                            }
+                                        } else {
+                                            // System Python - need to create venv first
+                                            HStack(alignment: .top, spacing: 8) {
+                                                Image(systemName: "exclamationmark.triangle.fill")
+                                                    .foregroundStyle(.orange)
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text("System Python Detected")
+                                                        .font(.caption.bold())
+                                                    Text("This Python doesn't allow global pip installs. Create a virtual environment to install packages.")
+                                                        .font(.caption)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                            }
+                                            
+                                            Button("Create Virtual Environment & Install") {
+                                                createVenvAndInstall(basePython: details.executablePath, packages: details.missingPackages)
                                             }
                                             .buttonStyle(.borderedProminent)
                                             .disabled(isInstalling)
+                                            
+                                            Text("This will create ~/ltx-venv and install packages there")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
                                         }
                                     }
                                     .padding(.top, 4)
@@ -433,6 +461,43 @@ struct PreferencesView: View {
                     validatePython()
                 } else {
                     installMessage = "Install failed: \(result.message)"
+                }
+            }
+        }
+    }
+    
+    private func createVenvAndInstall(basePython: String, packages: [String]) {
+        isInstalling = true
+        installMessage = "Creating virtual environment..."
+        
+        Task {
+            let venvPath = PythonEnvironment.shared.getRecommendedVenvPath()
+            let createResult = await PythonEnvironment.shared.createVirtualEnvironment(basePython: basePython, venvPath: venvPath)
+            
+            if createResult.success, let venvPython = createResult.pythonPath {
+                await MainActor.run {
+                    installMessage = "Venv created! Installing packages..."
+                }
+                
+                // Install packages to the new venv
+                let installResult = await PythonEnvironment.shared.installPackages(pythonExecutable: venvPython, packages: packages)
+                
+                await MainActor.run {
+                    isInstalling = false
+                    
+                    if installResult.success {
+                        // Update the Python path to use the new venv
+                        pythonPath = venvPython
+                        installMessage = "Virtual environment created and packages installed! Re-validating..."
+                        validatePython()
+                    } else {
+                        installMessage = "Venv created but package install failed: \(installResult.message)"
+                    }
+                }
+            } else {
+                await MainActor.run {
+                    isInstalling = false
+                    installMessage = "Failed to create venv: \(createResult.message)"
                 }
             }
         }
