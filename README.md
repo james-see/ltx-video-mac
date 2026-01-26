@@ -102,7 +102,7 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
 
 ### Architecture
 
-The app bundles the [mlx-video](https://github.com/Blaizzy/mlx-video) code for native MLX inference. Generation uses a 2-stage pipeline:
+Generation uses a 2-stage pipeline:
 1. Stage 1: Generate at half resolution
 2. Stage 2: Upsample and refine to full resolution
 
