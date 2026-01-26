@@ -295,9 +295,12 @@ except Exception as e:
                     } else {
                         progressHandler(0.05, message)
                     }
+                } else if stderr.hasPrefix("MODEL:CACHED:") {
+                    let repo = String(stderr.dropFirst(13))
+                    progressHandler(0.08, "Model cached: \(repo)")
                 } else if stderr.hasPrefix("DOWNLOAD:START:") {
                     let repo = String(stderr.dropFirst(15))
-                    progressHandler(0.01, "Downloading model: \(repo) (~90GB)")
+                    progressHandler(0.01, "Downloading model: \(repo)")
                 } else if stderr.hasPrefix("DOWNLOAD:PROGRESS:") {
                     // Format: DOWNLOAD:PROGRESS:currentBytes:totalBytes:pct%
                     let parts = stderr.dropFirst(18).split(separator: ":")

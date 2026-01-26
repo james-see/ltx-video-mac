@@ -45,7 +45,7 @@ struct PreferencesView: View {
     @AppStorage("outputDirectory") private var outputDirectory = ""
     @AppStorage("autoLoadModel") private var autoLoadModel = false
     @AppStorage("keepCompletedInQueue") private var keepCompletedInQueue = false
-    @AppStorage("selectedModelVariant") private var selectedModelVariant = "full"
+    @AppStorage("selectedModelVariant") private var selectedModelVariant = "distilled"
     
     @State private var pythonStatus: (success: Bool, message: String)?
     @State private var pythonDetails: PythonDetails?

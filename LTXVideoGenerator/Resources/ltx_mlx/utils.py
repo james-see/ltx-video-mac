@@ -6,7 +6,7 @@ import mlx.nn as nn
 import numpy as np
 from functools import partial
 from pathlib import Path
-from huggingface_hub import snapshot_download
+from huggingface_hub import snapshot_download, try_to_load_from_cache
 from PIL import Image
 import sys
 from tqdm import tqdm
@@ -18,79 +18,109 @@ class DownloadProgressBar(tqdm):
     def __init__(self, *args, **kwargs):
         # Filter out kwargs that tqdm doesn't understand
         # huggingface_hub passes 'name' which tqdm rejects
-        kwargs.pop('name', None)
-        kwargs['disable'] = False
-        kwargs['file'] = sys.stderr
+        kwargs.pop("name", None)
+        kwargs["disable"] = False
+        kwargs["file"] = sys.stderr
         self._last_reported = -1
         super().__init__(*args, **kwargs)
 
     def update(self, n=1):
         super().update(n)
         # Output progress in parseable format
-        total = getattr(self, 'total', None)
-        current = getattr(self, 'n', 0)
+        total = getattr(self, "total", None)
+        current = getattr(self, "n", 0)
         if total and total > 0:
             pct = int(100 * current / total)
             if pct != self._last_reported:
                 self._last_reported = pct
-                print(f"DOWNLOAD:PROGRESS:{current}:{total}:{pct}%",
-                      file=sys.stderr)
+                print(f"DOWNLOAD:PROGRESS:{current}:{total}:{pct}%", file=sys.stderr)
                 sys.stderr.flush()
 
     def close(self):
-        total = getattr(self, 'total', None)
-        current = getattr(self, 'n', 0)
+        total = getattr(self, "total", None)
+        current = getattr(self, "n", 0)
         if total and current >= total:
-            print(f"DOWNLOAD:PROGRESS:{total}:{total}:100%",
-                  file=sys.stderr)
+            print(f"DOWNLOAD:PROGRESS:{total}:{total}:100%", file=sys.stderr)
             sys.stderr.flush()
         super().close()
 
 
 def get_model_path(model_repo: str):
-    """Get or download LTX-2 model path."""
-    # Required files for LTX-2 model
+    """Get or download model from HuggingFace Hub."""
+    from huggingface_hub.constants import HF_HUB_CACHE
+    import os
+
+    # Debug: Show cache info
+    cache_dir = Path(HF_HUB_CACHE)
+    print(f"DEBUG:CACHE_DIR:{cache_dir}", file=sys.stderr)
+    print(f"DEBUG:LOOKING_FOR:{model_repo}", file=sys.stderr)
+
+    # List what's in the cache
+    if cache_dir.exists():
+        cached_repos = []
+        for item in cache_dir.iterdir():
+            if item.is_dir() and item.name.startswith("models--"):
+                repo_name = item.name.replace("models--", "").replace("--", "/")
+                cached_repos.append(repo_name)
+        print(f"DEBUG:CACHED_REPOS:{cached_repos}", file=sys.stderr)
+    else:
+        print(f"DEBUG:CACHE_DIR_NOT_FOUND", file=sys.stderr)
+
+    # Required files for LTX-2 distilled model
     required_files = [
         "ltx-2-19b-distilled.safetensors",
         "ltx-2-spatial-upscaler-x2-1.0.safetensors",
     ]
 
-    try:
+    # Check if model is already cached by looking for required files
+    cache_hit = True
+    for req_file in required_files:
+        cached = try_to_load_from_cache(repo_id=model_repo, filename=req_file)
+        status = "FOUND" if cached else "MISSING"
+        print(f"DEBUG:FILE:{req_file}:{status}", file=sys.stderr)
+        if cached is None:
+            cache_hit = False
+
+    sys.stderr.flush()
+
+    if cache_hit:
+        # All required files are cached, get the path
         path = Path(snapshot_download(repo_id=model_repo, local_files_only=True))
-        # Verify required files actually exist
-        missing_files = [f for f in required_files if not (path / f).exists()]
-        if missing_files:
-            raise FileNotFoundError(f"Missing required files: {missing_files}")
-        return path
-    except Exception:
-        print("DOWNLOAD:START:" + model_repo, file=sys.stderr)
-        print("Downloading LTX-2 model (~90GB, this may take a while)...",
-              file=sys.stderr)
+        print(f"MODEL:CACHED:{model_repo}", file=sys.stderr)
+        print(f"DEBUG:MODEL_PATH:{path}", file=sys.stderr)
         sys.stderr.flush()
-        path = Path(snapshot_download(
+        return path
+
+    # Need to download - show actual repo being downloaded
+    print(f"DOWNLOAD:START:{model_repo}", file=sys.stderr)
+    print(f"Downloading {model_repo}...", file=sys.stderr)
+    sys.stderr.flush()
+
+    path = Path(
+        snapshot_download(
             repo_id=model_repo,
             local_files_only=False,
             allow_patterns=["*.safetensors", "*.json"],
             tqdm_class=DownloadProgressBar,
-        ))
-        # Verify download completed successfully
-        missing_files = [f for f in required_files if not (path / f).exists()]
-        if missing_files:
-            msg = f"ERROR: Download incomplete. Missing: {missing_files}"
-            print(msg, file=sys.stderr)
-            print("Please check your internet connection and try again.",
-                  file=sys.stderr)
-            sys.stderr.flush()
-            raise FileNotFoundError(
-                f"Download failed - missing: {missing_files}"
-            )
-        print("DOWNLOAD:COMPLETE:" + model_repo, file=sys.stderr)
+        )
+    )
+
+    # Verify download completed successfully
+    missing_files = [f for f in required_files if not (path / f).exists()]
+    if missing_files:
+        msg = f"ERROR: Download incomplete. Missing: {missing_files}"
+        print(msg, file=sys.stderr)
         sys.stderr.flush()
-        return path
+        raise FileNotFoundError(f"Download failed - missing: {missing_files}")
+
+    print(f"DOWNLOAD:COMPLETE:{model_repo}", file=sys.stderr)
+    sys.stderr.flush()
+    return path
 
 
 def apply_quantization(model: nn.Module, weights: mx.array, quantization: dict):
     if quantization is not None:
+
         def get_class_predicate(p, m):
             if p in quantization:
                 return quantization[p]
@@ -116,9 +146,7 @@ def rms_norm(x: mx.array, eps: float = 1e-6) -> mx.array:
 
 @partial(mx.compile, shapeless=True)
 def to_denoised(
-    noisy: mx.array,
-    velocity: mx.array,
-    sigma: mx.array | float
+    noisy: mx.array, velocity: mx.array, sigma: mx.array | float
 ) -> mx.array:
     """Convert velocity prediction to denoised output."""
     if isinstance(sigma, (int, float)):
@@ -223,7 +251,9 @@ def prepare_image_for_encoding(
         if image_np.max() <= 1.0:
             image_np = (image_np * 255).astype(np.uint8)
         pil_image = Image.fromarray(image_np)
-        pil_image = pil_image.resize((target_width, target_height), Image.Resampling.LANCZOS)
+        pil_image = pil_image.resize(
+            (target_width, target_height), Image.Resampling.LANCZOS
+        )
         image = mx.array(np.array(pil_image).astype(np.float32) / 255.0)
     image = image * 2.0 - 1.0
     image = mx.transpose(image, (2, 0, 1))

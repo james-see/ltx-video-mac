@@ -126,7 +126,7 @@ struct SidebarButton: View {
 struct ModelStatusView: View {
     @EnvironmentObject var generationService: GenerationService
     @StateObject private var apiServer = APIServer.shared
-    @AppStorage("selectedModelVariant") private var selectedModelVariant = "full"
+    @AppStorage("selectedModelVariant") private var selectedModelVariant = "distilled"
     
     private var currentModelVariant: LTXModelVariant {
         LTXModelVariant(rawValue: selectedModelVariant) ?? .distilled
