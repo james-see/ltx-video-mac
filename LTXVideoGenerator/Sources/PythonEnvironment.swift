@@ -279,10 +279,14 @@ if dp:
     if os.path.exists(connectors):
         with open(connectors, 'r') as f:
             content = f.read()
-        if "MPS fix" in content or "freqs_dtype = torch.float32" in content:
+        # Check if already patched (has MPS fix comment) or if the problematic line exists
+        if "MPS fix" in content:
             print("PATCHED")
-        else:
+        elif "torch.float64 if self.double_precision" in content:
             print("NEEDS_PATCH")
+        else:
+            # Might be a different version, assume OK
+            print("PATCHED")
     else:
         print("NO_CONNECTORS")
 else:
@@ -596,11 +600,12 @@ else:
     /// Patch diffusers for MPS compatibility (fixes float64 error in LTX-2)
     /// Based on fix from https://github.com/Pocket-science/ltx2-mps
     func patchDiffusersForMPS(pythonExecutable: String) async -> (success: Bool, message: String) {
-        // Python script to find and patch diffusers
+        // Python script to find and patch diffusers - uses regex for robustness
         let patchScript = """
 import os
 import sys
 import site
+import re
 
 def find_diffusers_path():
     for path in site.getsitepackages():
@@ -614,25 +619,25 @@ def find_diffusers_path():
             return diffusers_path
     return None
 
-def patch_file(filepath, old_text, new_text, description):
+def patch_file_regex(filepath, pattern, replacement, description):
     if not os.path.exists(filepath):
         return f"skip: {filepath} not found"
     
     with open(filepath, 'r') as f:
         content = f.read()
     
-    if new_text in content:
+    if "# MPS fix" in content:
         return f"ok: {description} (already patched)"
     
-    if old_text not in content:
+    new_content, count = re.subn(pattern, replacement, content)
+    
+    if count == 0:
         return f"skip: {description} (pattern not found)"
     
-    content = content.replace(old_text, new_text)
-    
     with open(filepath, 'w') as f:
-        f.write(content)
+        f.write(new_content)
     
-    return f"patched: {description}"
+    return f"patched: {description} ({count} replacements)"
 
 diffusers_path = find_diffusers_path()
 if not diffusers_path:
@@ -643,22 +648,22 @@ print(f"Found diffusers at: {diffusers_path}")
 
 results = []
 
-# Patch 1: connectors.py
+# Patch 1: connectors.py - replace the float64 line with float32
 connectors_path = os.path.join(diffusers_path, "pipelines", "ltx2", "connectors.py")
-result1 = patch_file(
+result1 = patch_file_regex(
     connectors_path,
-    "freqs_dtype = torch.float64 if self.double_precision else torch.float32",
-    "# MPS fix: force float32 as MPS doesn't support float64\\n        freqs_dtype = torch.float32",
+    r"(\\s*)freqs_dtype = torch\\.float64 if self\\.double_precision else torch\\.float32",
+    r"\\1# MPS fix: force float32 as MPS doesn't support float64\\n\\1freqs_dtype = torch.float32",
     "connectors.py RoPE dtype"
 )
 results.append(result1)
 
-# Patch 2: transformer_ltx2.py
+# Patch 2: transformer_ltx2.py - same fix
 transformer_path = os.path.join(diffusers_path, "models", "transformers", "transformer_ltx2.py")
-result2 = patch_file(
+result2 = patch_file_regex(
     transformer_path,
-    "        # 3. Create a 1D grid of frequencies for RoPE\\n        freqs_dtype = torch.float64 if self.double_precision else torch.float32",
-    "        # 3. Create a 1D grid of frequencies for RoPE\\n        # MPS fix: force float32 as MPS doesn't support float64\\n        freqs_dtype = torch.float32",
+    r"(\\s*)freqs_dtype = torch\\.float64 if self\\.double_precision else torch\\.float32",
+    r"\\1# MPS fix: force float32 as MPS doesn't support float64\\n\\1freqs_dtype = torch.float32",
     "transformer_ltx2.py RoPE dtype"
 )
 results.append(result2)
