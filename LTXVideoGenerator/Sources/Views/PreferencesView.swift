@@ -1,10 +1,60 @@
 import SwiftUI
 
+enum LTXModelVariant: String, CaseIterable, Identifiable {
+    case full = "full"
+    case distilled = "distilled"
+    case fp8 = "fp8"
+    
+    var id: String { rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .full: return "LTX-2 Full (19B)"
+        case .distilled: return "LTX-2 Distilled (Fast)"
+        case .fp8: return "LTX-2 FP8 (Low Memory)"
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case .full: return "Best quality, requires ~20GB unified memory"
+        case .distilled: return "8 steps only, much faster, good for previews"
+        case .fp8: return "Quantized model, lower memory usage"
+        }
+    }
+    
+    var modelRepo: String { "Lightricks/LTX-2" }
+    
+    var subfolder: String {
+        switch self {
+        case .full: return "ltx-2-19b-dev"
+        case .distilled: return "ltx-2-19b-distilled"
+        case .fp8: return "ltx-2-19b-dev-fp8"
+        }
+    }
+    
+    var recommendedSteps: Int {
+        switch self {
+        case .full: return 40
+        case .distilled: return 8
+        case .fp8: return 40
+        }
+    }
+    
+    var recommendedGuidance: Double {
+        switch self {
+        case .distilled: return 1.0  // CFG=1 for distilled
+        default: return 4.0
+        }
+    }
+}
+
 struct PreferencesView: View {
     @AppStorage("pythonPath") private var pythonPath = ""
     @AppStorage("outputDirectory") private var outputDirectory = ""
     @AppStorage("autoLoadModel") private var autoLoadModel = false
     @AppStorage("keepCompletedInQueue") private var keepCompletedInQueue = false
+    @AppStorage("selectedModelVariant") private var selectedModelVariant = "full"
     
     @State private var pythonStatus: (success: Bool, message: String)?
     @State private var pythonDetails: PythonDetails?
@@ -101,9 +151,21 @@ struct PreferencesView: View {
                 }
                 
                 Section("Model") {
+                    Picker("Model Variant", selection: $selectedModelVariant) {
+                        ForEach(LTXModelVariant.allCases) { variant in
+                            Text(variant.displayName).tag(variant.rawValue)
+                        }
+                    }
+                    
+                    if let variant = LTXModelVariant(rawValue: selectedModelVariant) {
+                        Text(variant.description)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    
                     Toggle("Auto-load model on startup", isOn: $autoLoadModel)
                     
-                    Text("The LTX-2 model will be downloaded on first use (~4GB)")
+                    Text("Models are downloaded on first use from HuggingFace")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -159,7 +221,7 @@ struct PreferencesView: View {
                     .font(.title)
                     .bold()
                 
-                Text("Version 1.0.3")
+                Text("Version 1.0.8")
                     .foregroundStyle(.secondary)
                 
                 Divider()
@@ -167,8 +229,8 @@ struct PreferencesView: View {
                 
                 VStack(spacing: 8) {
                     Text("Powered by LTX-2 from Lightricks")
-                    Link("https://github.com/Lightricks/LTX-Video",
-                         destination: URL(string: "https://github.com/Lightricks/LTX-Video")!)
+                    Link("https://github.com/Lightricks/LTX-2",
+                         destination: URL(string: "https://github.com/Lightricks/LTX-2")!)
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

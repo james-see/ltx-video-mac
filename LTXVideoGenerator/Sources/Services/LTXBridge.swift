@@ -99,10 +99,10 @@ class LTXBridge {
         
         progressHandler("Checking Python environment...")
         
-        // Test that we can import the required modules
+        // Test that we can import the required modules for LTX-2
         let testScript = """
         import torch
-        import diffusers
+        from diffusers import LTX2Pipeline
         print("OK")
         """
         
@@ -129,7 +129,13 @@ class LTXBridge {
         let params = request.parameters
         let seed = params.seed ?? Int.random(in: 0..<Int(Int32.max))
         
-        progressHandler(0.1, "Starting generation (this may take several minutes)...")
+        // Get selected model variant from preferences
+        let modelVariantRaw = UserDefaults.standard.string(forKey: "selectedModelVariant") ?? "full"
+        let modelVariant = LTXModelVariant(rawValue: modelVariantRaw) ?? .full
+        let subfolder = modelVariant.subfolder
+        let isDistilled = modelVariant == .distilled
+        
+        progressHandler(0.1, "Starting generation with \(modelVariant.displayName)...")
         
         // Escape the prompt for Python
         let escapedPrompt = request.prompt
@@ -145,14 +151,17 @@ class LTXBridge {
         // Log file path
         let logFile = "/tmp/ltx_generation.log"
         
+        // Adjust guidance for distilled model (must be 1.0)
+        let effectiveGuidance = isDistilled ? 1.0 : params.guidanceScale
+        
         let script = """
 import os
 import sys
 import json
 
 import torch
-from diffusers import LTXPipeline
-from diffusers.utils import export_to_video
+from diffusers import LTX2Pipeline
+from diffusers.pipelines.ltx2.export_utils import encode_video
 
 # Set up file logging
 log_file = open("\(logFile)", "w")
@@ -161,27 +170,28 @@ def log(msg):
     print(msg, file=sys.stderr, flush=True)
 
 try:
-    log("=== LTX Generation Started ===")
+    log("=== LTX-2 Generation Started ===")
     log(f"Python: {sys.executable}")
     log(f"Torch version: {torch.__version__}")
     log(f"MPS available: {torch.backends.mps.is_available()}")
     log("Loading model...")
     
-    log("Loading pipeline from a-r-r-o-w/LTX-Video-0.9.1-diffusers...")
+    model_repo = "Lightricks/LTX-2"
+    subfolder = "\(subfolder)"
+    log(f"Loading LTX-2 pipeline: {model_repo} / {subfolder}")
     
-    # Use bfloat16 as recommended by LTX-Video docs - works on MPS with PyTorch 2.9+
-    pipe = LTXPipeline.from_pretrained(
-        "a-r-r-o-w/LTX-Video-0.9.1-diffusers",
-        torch_dtype=torch.bfloat16
+    # Use float16 for best MPS compatibility on Apple Silicon
+    pipe = LTX2Pipeline.from_pretrained(
+        model_repo,
+        subfolder=subfolder,
+        torch_dtype=torch.float16
     )
     
     log("Moving to MPS...")
     pipe.to("mps")
     
-    # Keep it simple - match the terminal version that works
     log("Pipeline ready")
-    
-    log("Generating video...")
+    log("Generating video with audio...")
     
     # Ensure dimensions are divisible by 32 for proper alignment
     gen_width = (\(params.width) // 32) * 32
@@ -190,52 +200,60 @@ try:
     gen_frames = ((\(params.numFrames) - 1) // 8) * 8 + 1
     
     log(f"Setting up generator with seed \(seed)...")
-    # Use CPU generator - more stable with MPS pipeline
-    generator = torch.Generator(device="cpu")
+    generator = torch.Generator(device="mps")
     generator.manual_seed(\(seed))
     
     prompt = "\(escapedPrompt)"
     negative_prompt = "\(escapedNegative)" if "\(escapedNegative)" else None
     
+    # Distilled model uses CFG=1
+    is_distilled = \(isDistilled ? "True" : "False")
+    guidance = \(effectiveGuidance) if not is_distilled else 1.0
+    
     log(f"Prompt: {prompt}")
-    log(f"Settings: steps=\(params.numInferenceSteps), guidance=\(params.guidanceScale), size={gen_width}x{gen_height}, frames={gen_frames}")
+    log(f"Model: {subfolder}, Distilled: {is_distilled}")
+    log(f"Settings: steps=\(params.numInferenceSteps), guidance={guidance}, size={gen_width}x{gen_height}, frames={gen_frames}")
     log("Starting pipeline...")
     
     # Synchronize MPS before generation
     if torch.backends.mps.is_available():
         torch.mps.synchronize()
     
-    result = pipe(
+    # LTX-2 returns video and audio
+    video, audio = pipe(
         prompt=prompt,
-        negative_prompt=negative_prompt,
+        negative_prompt=negative_prompt if not is_distilled else None,
         num_inference_steps=\(params.numInferenceSteps),
-        guidance_scale=\(params.guidanceScale),
+        guidance_scale=guidance,
         width=gen_width,
         height=gen_height,
         num_frames=gen_frames,
-        generator=generator
-        # Use default output_type - let diffusers handle post-processing
+        frame_rate=float(\(params.fps)),
+        generator=generator,
+        output_type="np",
+        return_dict=False,
     )
     
     # Synchronize after generation
     if torch.backends.mps.is_available():
         torch.mps.synchronize()
     
-    log(f"Pipeline complete. Result type: {type(result)}")
-    log(f"Frames type: {type(result.frames)}")
+    log(f"Pipeline complete. Video shape: {video.shape}")
     
-    # result.frames should be a list of numpy arrays or PIL images
-    frames = result.frames[0]  # Get first (and usually only) batch
-    log(f"Frames type after indexing: {type(frames)}")
+    # Convert video to tensor format for encode_video
+    video = (video * 255).round().astype("uint8")
+    video_tensor = torch.from_numpy(video)
     
-    if hasattr(frames, 'shape'):
-        log(f"Frames shape: {frames.shape}")
-    elif hasattr(frames, '__len__'):
-        log(f"Frames length: {len(frames)}")
+    log(f"Exporting video with audio to \(outputPath)...")
     
-    log(f"Exporting video to \(outputPath)...")
-    
-    export_to_video(frames, "\(outputPath)", fps=\(params.fps))
+    # Export video with synchronized audio using LTX-2's encode_video
+    encode_video(
+        video_tensor[0],
+        fps=\(params.fps),
+        audio=audio[0].float().cpu(),
+        audio_sample_rate=pipe.vocoder.config.output_sampling_rate,
+        output_path="\(outputPath)",
+    )
     
     log("Export complete!")
     log_file.close()

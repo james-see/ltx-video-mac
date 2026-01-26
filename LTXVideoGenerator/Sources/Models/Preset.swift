@@ -21,16 +21,16 @@ struct Preset: Identifiable, Codable, Equatable, Hashable {
         self.createdAt = createdAt
     }
     
-    // All presets use MPS-safe dimensions (divisible by 32, moderate sizes)
+    // All presets optimized for LTX-2 on Apple Silicon
     static let builtInPresets: [Preset] = [
         Preset(
-            name: "Fast Preview",
-            parameters: .default,
+            name: "Quick Preview",
+            parameters: .preview,
             isBuiltIn: true
         ),
         Preset(
             name: "Standard",
-            parameters: .standard,
+            parameters: .default,
             isBuiltIn: true
         ),
         Preset(
@@ -41,11 +41,11 @@ struct Preset: Identifiable, Codable, Equatable, Hashable {
         Preset(
             name: "Portrait",
             parameters: GenerationParameters(
-                numInferenceSteps: 35,
-                guidanceScale: 5.0,
-                width: 384,
-                height: 640,
-                numFrames: 41,
+                numInferenceSteps: 40,
+                guidanceScale: 4.0,
+                width: 512,
+                height: 768,
+                numFrames: 121,
                 fps: 24,
                 seed: nil
             ),
@@ -54,11 +54,11 @@ struct Preset: Identifiable, Codable, Equatable, Hashable {
         Preset(
             name: "Square",
             parameters: GenerationParameters(
-                numInferenceSteps: 35,
-                guidanceScale: 5.0,
+                numInferenceSteps: 40,
+                guidanceScale: 4.0,
                 width: 512,
                 height: 512,
-                numFrames: 41,
+                numFrames: 121,
                 fps: 24,
                 seed: nil
             ),
@@ -68,10 +68,10 @@ struct Preset: Identifiable, Codable, Equatable, Hashable {
             name: "Cinematic 21:9",
             parameters: GenerationParameters(
                 numInferenceSteps: 40,
-                guidanceScale: 6.0,
+                guidanceScale: 4.0,
                 width: 768,
                 height: 320,
-                numFrames: 49,
+                numFrames: 121,
                 fps: 24,
                 seed: nil
             ),

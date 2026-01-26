@@ -42,35 +42,35 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     var fps: Int
     var seed: Int?
     
-    // Default uses MPS-safe dimensions (tested working on Apple Silicon)
+    // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
-        numInferenceSteps: 25,
-        guidanceScale: 5.0,
-        width: 512,
-        height: 320,
-        numFrames: 25,
+        numInferenceSteps: 40,
+        guidanceScale: 4.0,
+        width: 768,
+        height: 512,
+        numFrames: 121,
         fps: 24,
         seed: nil
     )
     
-    // Standard quality - moderate dimensions
-    static let standard = GenerationParameters(
-        numInferenceSteps: 40,
-        guidanceScale: 5.0,
-        width: 640,
-        height: 384,
+    // Quick preview - fewer frames and steps
+    static let preview = GenerationParameters(
+        numInferenceSteps: 20,
+        guidanceScale: 4.0,
+        width: 512,
+        height: 320,
         numFrames: 49,
         fps: 24,
         seed: nil
     )
     
-    // High quality - larger dimensions (may have MPS issues on some configs)
+    // High quality - more steps
     static let highQuality = GenerationParameters(
         numInferenceSteps: 50,
-        guidanceScale: 7.0,
+        guidanceScale: 4.0,
         width: 768,
         height: 512,
-        numFrames: 65,
+        numFrames: 121,
         fps: 24,
         seed: nil
     )
@@ -103,9 +103,10 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     }
     
     var estimatedVRAM: Int {
-        // Rough estimate: ~100MB per frame at 512x320, scales with resolution
-        let baseVRAM = Double(numFrames) * 0.1
-        let resolutionScale = Double(width * height) / (512.0 * 320.0)
+        // LTX-2 is a 19B model - requires significant unified memory
+        // Base ~20GB for model, plus ~200MB per frame at 768x512
+        let baseVRAM = 20.0 + Double(numFrames) * 0.2
+        let resolutionScale = Double(width * height) / (768.0 * 512.0)
         return Int(baseVRAM * resolutionScale)
     }
 }
