@@ -62,11 +62,9 @@ struct PromptInputView: View {
                                     .fontWeight(.medium)
                                     .lineLimit(1)
                                 
-                                if let size = thumbnail.size {
-                                    Text("\(Int(size.width))x\(Int(size.height))")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
+                                Text("\(Int(thumbnail.size.width))x\(Int(thumbnail.size.height))")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                                 
                                 Button(role: .destructive) {
                                     clearSourceImage()

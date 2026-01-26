@@ -231,7 +231,7 @@ class PythonEnvironment {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
         // Step 7: Check for required packages
-        let requiredPackages = ["torch", "diffusers", "av"]
+        let requiredPackages = ["torch", "diffusers", "av", "PIL"]
         var missingPackages: [String] = []
         
         for pkg in requiredPackages {
