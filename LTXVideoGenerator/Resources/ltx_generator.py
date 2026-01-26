@@ -62,6 +62,9 @@ class LTXGenerator:
 
         torch_dtype = torch.float16 if self.dtype == "float16" else torch.float32
 
+        # MPS FIX: Force float32 as default - MPS doesn't support float64
+        torch.set_default_dtype(torch.float32)
+
         # device_map=None prevents automatic CPU offloading - we want pure MPS
         self.pipe = LTX2Pipeline.from_pretrained(
             "Lightricks/LTX-2",
@@ -69,6 +72,17 @@ class LTXGenerator:
             torch_dtype=torch_dtype,
             device_map=None,
         )
+
+        # MPS FIX: Disable double_precision on RoPE modules - MPS doesn't support float64
+        if hasattr(self.pipe, "transformer") and hasattr(
+            self.pipe.transformer, "double_precision"
+        ):
+            self.pipe.transformer.double_precision = False
+        if hasattr(self.pipe, "connectors"):
+            for name, module in self.pipe.connectors.named_modules():
+                if hasattr(module, "double_precision"):
+                    module.double_precision = False
+
         self.pipe.to("mps")
 
         # Verify pipeline is on MPS

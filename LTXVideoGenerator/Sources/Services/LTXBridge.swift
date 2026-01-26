@@ -184,6 +184,10 @@ try:
     log(f"Torch version: {torch.__version__}")
     log(f"MPS available: {torch.backends.mps.is_available()}")
     
+    # CRITICAL: Force float32 as default - MPS doesn't support float64
+    # This fixes the rotary embedding error in LTX-2 connectors
+    torch.set_default_dtype(torch.float32)
+    
     # Image-to-video: load source image if provided
     source_image_path = "\(escapedImagePath)"
     source_image = None
@@ -209,6 +213,17 @@ try:
         torch_dtype=torch.float16,
         device_map=None,
     )
+    
+    # MPS FIX: Disable double_precision on RoPE modules - MPS doesn't support float64
+    # This affects rotary position embeddings in connectors and transformer
+    if hasattr(pipe, 'transformer') and hasattr(pipe.transformer, 'double_precision'):
+        pipe.transformer.double_precision = False
+        log("Disabled double_precision on transformer")
+    if hasattr(pipe, 'connectors'):
+        for name, module in pipe.connectors.named_modules():
+            if hasattr(module, 'double_precision'):
+                module.double_precision = False
+                log(f"Disabled double_precision on connectors.{name}")
     
     log("Moving to MPS (no CPU offload)...")
     pipe.to("mps")
