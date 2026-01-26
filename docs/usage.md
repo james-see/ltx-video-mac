@@ -36,12 +36,15 @@ Select a preset from the dropdown to quickly configure parameters:
 
 | Preset | Resolution | Frames | Steps | Best For |
 |:-------|:-----------|:-------|:------|:---------|
-| Fast Preview | 512×320 | 25 | 25 | Quick tests |
-| Standard | 640×384 | 49 | 40 | Balanced quality |
-| High Quality | 768×512 | 65 | 50 | Best results |
-| Portrait | 384×640 | 41 | 35 | Vertical videos |
-| Square | 512×512 | 41 | 35 | Social media |
-| Cinematic | 768×320 | 49 | 40 | Wide format |
+| Quick Preview | 512×320 | 49 | 20 | Quick tests |
+| Standard | 768×512 | 121 | 40 | Balanced quality |
+| High Quality | 768×512 | 121 | 50 | Best results |
+| Portrait | 512×768 | 121 | 40 | Vertical videos |
+| Square | 512×512 | 121 | 40 | Social media |
+| Cinematic 21:9 | 768×320 | 121 | 40 | Wide format |
+
+{: .tip }
+For faster iteration, select the **Distilled** model variant in Preferences. It generates videos in ~8 steps instead of 40.
 
 ### 3. Generate
 

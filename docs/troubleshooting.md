@@ -88,17 +88,21 @@ pip install --upgrade torch torchvision torchaudio
 2. Or run the Python script manually to see errors
 
 **Common causes:**
-- Out of memory (reduce resolution/frames)
+- Out of memory (try Distilled or FP8 model variant)
 - Model not fully downloaded
 - Network issue during model download
 
 **Solution:**
 ```bash
 # Clear partially downloaded model
-rm -rf ~/.cache/huggingface/hub/models--a-r-r-o-w--LTX-Video*
+rm -rf ~/.cache/huggingface/hub/models--Lightricks--LTX-2*
 
 # Retry - model will redownload
 ```
+
+**Try a lighter model:**
+1. Open Preferences > Model
+2. Select "LTX-2 Distilled (Fast)" or "LTX-2 FP8 (Low Memory)"
 
 ### Black video output
 
@@ -106,9 +110,9 @@ rm -rf ~/.cache/huggingface/hub/models--a-r-r-o-w--LTX-Video*
 
 **Cause:** Usually a precision/dtype issue with MPS.
 
-**Solution:** The app uses `bfloat16` which is compatible with MPS. If you're building from source, ensure:
+**Solution:** The app uses `float16` for MPS compatibility. If you're building from source, ensure:
 ```python
-torch_dtype=torch.bfloat16  # NOT float16
+torch_dtype=torch.float16
 ```
 
 ### Very slow generation
@@ -131,21 +135,28 @@ torch_dtype=torch.bfloat16  # NOT float16
 
 **Solutions:**
 
-1. **Reduce resolution:**
+1. **Use a lighter model variant:**
+   - In Preferences > Model, select "LTX-2 FP8 (Low Memory)"
+   - Or "LTX-2 Distilled (Fast)" for fewer steps
+   
+2. **Reduce resolution:**
    - Use 512×320 instead of higher resolutions
    
-2. **Reduce frame count:**
-   - Start with 25 frames
+3. **Reduce frame count:**
+   - Start with 49 frames instead of 121
    
-3. **Close other apps:**
+4. **Close other apps:**
    - Safari, Chrome use significant memory
    - Other ML applications
    
-4. **Check available memory:**
+5. **Check available memory:**
    ```bash
    # In Terminal
    vm_stat | head -5
    ```
+
+{: .note }
+LTX-2 is a 19B parameter model. For best results, 32GB+ unified memory is recommended. Macs with 16GB may struggle with the full model.
 
 ### Model download stuck
 
@@ -156,7 +167,11 @@ torch_dtype=torch.bfloat16  # NOT float16
 2. Try again later (HuggingFace servers may be busy)
 3. Download manually:
    ```bash
-   huggingface-cli download a-r-r-o-w/LTX-Video-0.9.1-diffusers
+   huggingface-cli download Lightricks/LTX-2
+   ```
+4. Use a smaller variant first:
+   ```bash
+   huggingface-cli download Lightricks/LTX-2 --include "ltx-2-19b-dev-fp8/*"
    ```
 
 ---
@@ -219,8 +234,8 @@ import torch
 print(f"PyTorch: {torch.__version__}")
 print(f"MPS available: {torch.backends.mps.is_available()}")
 
-from diffusers import LTXPipeline
-print("Diffusers: OK")
+from diffusers import LTX2Pipeline
+print("Diffusers LTX2Pipeline: OK")
 
 import imageio
 print("imageio: OK")

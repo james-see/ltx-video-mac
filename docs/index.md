@@ -19,11 +19,13 @@ Transform text into stunning AI-generated videos on your Mac.
 
 ## Native macOS Experience
 
-LTX Video Generator is a beautiful, native macOS application built with SwiftUI. It harnesses the power of Apple Silicon to generate AI videos directly on your Mac using the LTX-Video model from Lightricks.
+LTX Video Generator is a beautiful, native macOS application built with SwiftUI. It harnesses the power of Apple Silicon to generate AI videos with synchronized audio directly on your Mac using the LTX-2 model from Lightricks.
 
 ### Key Features
 
 - **Apple Silicon Optimized** - Leverages Metal Performance Shaders (MPS) for fast GPU-accelerated generation
+- **LTX-2 Model** - Latest 19B audio-video foundation model generates video with synchronized audio
+- **Model Variants** - Choose between Full (best quality), Distilled (fast), or FP8 (low memory)
 - **Intuitive Interface** - Clean, native macOS design that feels right at home
 - **Generation Queue** - Queue multiple videos and track progress in real-time
 - **Smart History** - Browse, preview, and manage all your generated videos with thumbnails
@@ -40,11 +42,14 @@ LTX Video Generator is a beautiful, native macOS application built with SwiftUI.
 
 | Requirement | Minimum | Recommended |
 |:------------|:--------|:------------|
-| macOS | 14.0+ | 14.0+ |
-| Processor | Apple M1 | Apple M2/M3/M4 |
-| RAM | 16GB | 32GB+ |
-| Storage | 20GB free | 50GB+ free |
-| Python | 3.10+ | 3.11+ |
+| macOS | 14.0+ | 15.0+ |
+| Processor | Apple M1 | Apple M2 Pro/M3/M4 |
+| Unified Memory | 32GB | 64GB+ |
+| Storage | 50GB free | 100GB+ free |
+| Python | 3.10+ | 3.12+ |
+
+{: .note }
+LTX-2 is a 19B parameter model requiring significant unified memory. For systems with less RAM, use the **Distilled** or **FP8** model variants in Preferences.
 
 ## Sample Results
 

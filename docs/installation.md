@@ -41,14 +41,15 @@ source ~/ltx-venv/bin/activate
 # Install PyTorch with MPS support
 pip install torch torchvision torchaudio
 
-# Install diffusers and dependencies
-pip install diffusers accelerate transformers safetensors sentencepiece
+# Install diffusers 0.36.0+ (required for LTX-2)
+pip install "diffusers>=0.36.0" accelerate transformers safetensors sentencepiece
 
 # Install video export dependencies
-pip install imageio imageio-ffmpeg opencv-python
+pip install imageio imageio-ffmpeg opencv-python numpy
 
 # Verify installation
 python -c "import torch; print(f'PyTorch {torch.__version__}, MPS: {torch.backends.mps.is_available()}')"
+python -c "from diffusers import LTX2Pipeline; print('LTX2Pipeline OK')"
 ```
 
 ### Option 2: Using pyenv
@@ -94,10 +95,17 @@ pip install imageio imageio-ffmpeg opencv-python
 
 On your first generation:
 
-1. The app will download the LTX-Video model (~15GB)
-2. This may take several minutes depending on your internet connection
+1. The app will download the LTX-2 model (~20-40GB depending on variant)
+2. This may take 10-30 minutes depending on your internet connection
 3. The model is cached locally for future use
 4. Subsequent generations will start much faster
+
+### Model Variants
+
+You can select your preferred model in **Preferences > Model**:
+- **Full (19B)** - Best quality, largest download
+- **Distilled** - Same size, but only needs 8 inference steps
+- **FP8** - Quantized, smaller memory footprint
 
 ### Model Storage Location
 
@@ -105,6 +113,9 @@ The model is cached by Hugging Face in:
 ```
 ~/.cache/huggingface/hub/
 ```
+
+{: .warning }
+LTX-2 is a large model. Ensure you have at least 50GB free disk space for model downloads.
 
 ## Verify Installation
 

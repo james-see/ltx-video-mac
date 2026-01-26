@@ -7,7 +7,7 @@ nav_order: 4
 # Parameters Reference
 {: .no_toc }
 
-Detailed explanation of all generation parameters.
+Detailed explanation of all generation parameters for LTX-2.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -15,6 +15,21 @@ Detailed explanation of all generation parameters.
 
 1. TOC
 {:toc}
+
+---
+
+## Model Variants
+
+Select your model variant in **Preferences > Model**:
+
+| Variant | Description | Steps | Guidance | Memory |
+|:--------|:------------|:------|:---------|:-------|
+| **Full (19B)** | Best quality | 40 | 4.0 | ~20GB |
+| **Distilled** | Fast previews | 8 | 1.0 | ~20GB |
+| **FP8** | Lower memory | 40 | 4.0 | ~12GB |
+
+{: .note }
+The **Distilled** model automatically uses CFG=1.0 and ignores negative prompts (required by the model architecture).
 
 ---
 
@@ -26,8 +41,8 @@ Controls the dimensions of the generated video in pixels.
 
 | Setting | Range | Default |
 |:--------|:------|:--------|
-| Width | 256-1280 | 512 |
-| Height | 256-1280 | 320 |
+| Width | 320-1024 | 768 |
+| Height | 320-768 | 512 |
 
 **Tips:**
 - Both dimensions should be divisible by 64 for best results
@@ -50,11 +65,11 @@ Controls the dimensions of the generated video in pixels.
 
 ### Number of Frames
 
-Total frames to generate. More frames = longer video.
+Total frames to generate. More frames = longer video. Frames must be 8n+1 (9, 17, 25, 33, 41, 49... 121, etc).
 
 | Setting | Range | Default |
 |:--------|:------|:--------|
-| Frames | 9-121 | 25 |
+| Frames | 25-1000 | 121 |
 
 **Duration calculation:**
 ```
@@ -62,10 +77,10 @@ Duration (seconds) = Frames ÷ FPS
 ```
 
 Examples at 24 FPS:
-- 25 frames = ~1 second
 - 49 frames = ~2 seconds
-- 73 frames = ~3 seconds
-- 97 frames = ~4 seconds
+- 121 frames = ~5 seconds (default)
+- 241 frames = ~10 seconds
+- 481 frames = ~20 seconds
 
 ### FPS (Frames Per Second)
 
@@ -92,27 +107,26 @@ Number of denoising steps. More steps = higher quality but slower.
 |:--------|:------|:--------|
 | Steps | 10-100 | 40 |
 
-**Recommendations:**
-- 20-25: Fast preview
-- 35-45: Good quality
-- 50+: Maximum quality
+**Recommendations by model:**
+- **Distilled model:** 8 steps (fixed, fast previews)
+- **Full/FP8 model:** 40 steps (balanced), 50+ for maximum quality
 
 The quality improvement diminishes after ~50 steps.
 
 ### Guidance Scale
 
-How closely the model follows your prompt.
+How closely the model follows your prompt (CFG - Classifier-Free Guidance).
 
 | Setting | Range | Default |
 |:--------|:------|:--------|
-| Guidance | 1.0-20.0 | 7.5 |
+| Guidance | 1.0-15.0 | 4.0 |
 
 **Effects:**
-- **Low (1-3):** More creative, may ignore prompt details
-- **Medium (5-8):** Balanced adherence
-- **High (10+):** Strict prompt following, may reduce quality
+- **1.0:** No guidance (required for Distilled model)
+- **3-5:** Balanced adherence (recommended for LTX-2)
+- **6+:** Stronger prompt following, may reduce quality
 
-**Recommended range:** 5.0 - 10.0
+**Recommended range:** 3.0 - 5.0 for LTX-2
 
 ---
 
@@ -162,41 +176,41 @@ static, still image
 
 ## Presets
 
-Presets provide quick access to common configurations:
+Presets provide quick access to common configurations optimized for LTX-2:
 
-### Fast Preview
+### Quick Preview
 ```
-512×320, 25 frames, 25 steps
+512×320, 49 frames, 20 steps, guidance 4.0
 ```
-Quick testing, ~30 seconds
+Fast testing, ~1-2 minutes
 
-### Standard
+### Standard (Default)
 ```
-640×384, 49 frames, 40 steps
+768×512, 121 frames, 40 steps, guidance 4.0
 ```
-Good balance, ~2 minutes
+Good balance, ~5 minutes
 
 ### High Quality
 ```
-768×512, 65 frames, 50 steps
+768×512, 121 frames, 50 steps, guidance 4.0
 ```
-Best results, ~5+ minutes
+Best results, ~7+ minutes
 
 ### Portrait
 ```
-384×640, 41 frames, 35 steps
+512×768, 121 frames, 40 steps, guidance 4.0
 ```
 Vertical format for mobile
 
 ### Square
 ```
-512×512, 41 frames, 35 steps
+512×512, 121 frames, 40 steps, guidance 4.0
 ```
 Social media format
 
-### Cinematic
+### Cinematic 21:9
 ```
-768×320, 49 frames, 40 steps
+768×320, 121 frames, 40 steps, guidance 4.0
 ```
 Ultra-wide aspect ratio
 
@@ -206,19 +220,30 @@ Ultra-wide aspect ratio
 
 ### Memory Usage
 
-Approximate VRAM requirements:
-- 512×320: ~8GB
-- 640×384: ~12GB
-- 768×512: ~16GB
+LTX-2 is a 19B parameter model requiring significant unified memory:
+
+| Model Variant | Base Memory | With Generation |
+|:--------------|:------------|:----------------|
+| Full (19B) | ~20GB | ~25-30GB |
+| Distilled | ~20GB | ~25-30GB |
+| FP8 | ~12GB | ~15-20GB |
 
 ### Generation Time
 
-Rough estimates on M2 Max:
-- Fast Preview: 30-60 seconds
-- Standard: 1-2 minutes
-- High Quality: 3-5 minutes
+Rough estimates on M2 Max (64GB):
+
+| Preset | Full Model | Distilled |
+|:-------|:-----------|:----------|
+| Quick Preview | 2-3 min | 30-60 sec |
+| Standard | 5-7 min | 1-2 min |
+| High Quality | 8-12 min | 2-3 min |
 
 Times vary based on:
-- Chip (M1/M2/M3/M4)
-- RAM amount
+- Chip (M1/M2/M3/M4) and core count
+- Unified memory amount
 - Other running applications
+- Number of frames
+
+### Audio Generation
+
+LTX-2 generates synchronized audio with your video automatically. The audio is embedded in the output MP4 file.
