@@ -78,6 +78,17 @@ Progress is shown in the app during download.
 - Specify lighting: "golden hour lighting", "dramatic shadows"
 - Include motion: "waves crashing", "leaves falling"
 
+## Example
+
+Here's an example video generated with LTX Video Generator:
+
+https://bellwetherlabs.com/example1.mp4
+
+**Prompt used:**
+> Create a 15-second cinematic product commercial for a sleek, premium TIME MACHINE device called "ChronoShift One."
+> 
+> Overall style: glossy tech product ad, filmed in 4K, smooth dolly and slider shots, soft studio lighting, subtle retro‑futuristic aesthetic (think brushed aluminum, glowing rings, clean UI). The time machine looks like a compact desktop appliance about the size of a toaster: brushed metal body, circular time dial with glowing blue light, small display, and a single illuminated control knob.
+
 ## Building from Source
 
 ```bash
