@@ -234,7 +234,7 @@ class PythonEnvironment {
         var missingPackages: [String] = []
         var hasMLX = false
         
-        // Required packages for bundled ltx_mlx
+        // Required packages for bundled ltx_mlx and audio generation
         let requiredPackages = [
             ("mlx.core", "mlx"),
             ("mlx_vlm", "mlx-vlm"),
@@ -244,7 +244,8 @@ class PythonEnvironment {
             ("numpy", "numpy"),
             ("PIL", "Pillow"),
             ("cv2", "opencv-python"),
-            ("tqdm", "tqdm")
+            ("tqdm", "tqdm"),
+            ("mlx_audio", "mlx-audio")  // For TTS audio generation
         ]
         
         for (importName, pipName) in requiredPackages {

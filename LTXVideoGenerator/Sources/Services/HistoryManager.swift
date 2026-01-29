@@ -163,6 +163,7 @@ class HistoryManager: ObservableObject {
                     parameters: result.parameters,
                     videoPath: result.videoPath,
                     thumbnailPath: newPath,
+                    audioPath: result.audioPath,
                     createdAt: result.createdAt,
                     completedAt: result.completedAt,
                     duration: result.duration,
@@ -172,6 +173,18 @@ class HistoryManager: ObservableObject {
             }
         }
         saveHistory()
+    }
+    
+    // MARK: - Update
+    
+    func updateResult(_ updatedResult: GenerationResult) {
+        if let index = results.firstIndex(where: { $0.id == updatedResult.id }) {
+            results[index] = updatedResult
+            if selectedResult?.id == updatedResult.id {
+                selectedResult = updatedResult
+            }
+            saveHistory()
+        }
     }
     
     // MARK: - Export

@@ -27,6 +27,9 @@
 		AA000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000024; };
 		AA000025 /* APIServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000026; };
 		AA000027 /* ltx_mlx in Resources */ = {isa = PBXBuildFile; fileRef = AA000028; };
+		AA000029 /* audio_generator.py in Resources */ = {isa = PBXBuildFile; fileRef = AA00002A; };
+		AA00002B /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00002C; };
+		AA00002D /* AddAudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00002E; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -49,6 +52,9 @@
 		AA000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000026 /* APIServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServer.swift; sourceTree = "<group>"; };
 		AA000028 /* ltx_mlx */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ltx_mlx; sourceTree = "<group>"; };
+		AA00002A /* audio_generator.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = audio_generator.py; sourceTree = "<group>"; };
+		AA00002C /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
+		AA00002E /* AddAudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddAudioView.swift; sourceTree = "<group>"; };
 		AA000030 /* LTXVideoGenerator.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LTXVideoGenerator.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -90,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				AA000020 /* ltx_generator.py */,
+				AA00002A /* audio_generator.py */,
 				AA000028 /* ltx_mlx */,
 			);
 			path = Resources;
@@ -121,6 +128,7 @@
 				AA000012 /* HistoryManager.swift */,
 				AA000014 /* PresetManager.swift */,
 				AA000026 /* APIServer.swift */,
+				AA00002C /* AudioService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -134,6 +142,7 @@
 				AA00001A /* QueueView.swift */,
 				AA00001C /* HistoryView.swift */,
 				AA00001E /* PreferencesView.swift */,
+				AA00002E /* AddAudioView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -204,6 +213,7 @@
 			files = (
 				AA000023 /* Assets.xcassets in Resources */,
 				AA00001F /* ltx_generator.py in Resources */,
+				AA000029 /* audio_generator.py in Resources */,
 				AA000027 /* ltx_mlx in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -231,6 +241,8 @@
 				AA00001B /* HistoryView.swift in Sources */,
 				AA00001D /* PreferencesView.swift in Sources */,
 				AA000025 /* APIServer.swift in Sources */,
+				AA00002B /* AudioService.swift in Sources */,
+				AA00002D /* AddAudioView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

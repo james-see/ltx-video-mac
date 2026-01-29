@@ -30,3 +30,6 @@ opencv-python>=4.8.0
 
 # Progress bars
 tqdm>=4.65.0
+
+# Audio generation (for adding narration/TTS to videos)
+mlx-audio>=0.2.0

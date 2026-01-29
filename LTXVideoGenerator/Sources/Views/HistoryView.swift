@@ -8,6 +8,8 @@ struct HistoryView: View {
     @State private var selection = Set<GenerationResult>()
     @State private var searchText = ""
     @State private var sortOrder: SortOrder = .dateDescending
+    @State private var showAddAudioSheet = false
+    @State private var addAudioResult: GenerationResult?
     
     enum SortOrder: String, CaseIterable {
         case dateDescending = "Newest First"
@@ -129,7 +131,10 @@ struct HistoryView: View {
             
             // Detail view
             if let selected = historyManager.selectedResult {
-                HistoryDetailView(result: selected)
+                HistoryDetailView(result: selected, onAddAudio: { result in
+                    addAudioResult = result
+                    showAddAudioSheet = true
+                })
                     .frame(minWidth: 350, idealWidth: 400)
             } else {
                 VStack {
@@ -140,6 +145,22 @@ struct HistoryView: View {
                         .foregroundStyle(.secondary)
                 }
                 .frame(minWidth: 350, idealWidth: 400, maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .sheet(isPresented: $showAddAudioSheet) {
+            if let result = addAudioResult {
+                AddAudioView(
+                    result: result,
+                    onComplete: { updatedResult in
+                        historyManager.updateResult(updatedResult)
+                        showAddAudioSheet = false
+                        addAudioResult = nil
+                    },
+                    onDismiss: {
+                        showAddAudioSheet = false
+                        addAudioResult = nil
+                    }
+                )
             }
         }
     }
@@ -156,6 +177,15 @@ struct HistoryView: View {
             historyManager.revealInFinder(result)
         } label: {
             Label("Show in Finder", systemImage: "folder")
+        }
+        
+        Divider()
+        
+        Button {
+            addAudioResult = result
+            showAddAudioSheet = true
+        } label: {
+            Label(result.hasAudio ? "Replace Audio" : "Add Audio", systemImage: "waveform")
         }
         
         Divider()
@@ -270,6 +300,7 @@ struct HistoryDetailView: View {
     @EnvironmentObject var historyManager: HistoryManager
     
     let result: GenerationResult
+    let onAddAudio: (GenerationResult) -> Void
     @State private var player: AVPlayer?
     
     var body: some View {
@@ -337,6 +368,18 @@ struct HistoryDetailView: View {
                         DetailItem(label: "Duration", value: result.formattedDuration)
                     }
                     
+                    // Audio indicator
+                    if result.hasAudio {
+                        HStack(spacing: 4) {
+                            Image(systemName: "waveform")
+                                .foregroundStyle(.green)
+                            Text("Has Audio")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 4)
+                    }
+                    
                     // Actions
                     HStack(spacing: 12) {
                         Button {
@@ -347,6 +390,12 @@ struct HistoryDetailView: View {
                         
                         ShareLink(item: result.videoURL) {
                             Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        
+                        Button {
+                            onAddAudio(result)
+                        } label: {
+                            Label(result.hasAudio ? "Replace Audio" : "Add Audio", systemImage: "waveform")
                         }
                         
                         Spacer()
@@ -405,4 +454,10 @@ struct DetailItem: View {
         .environmentObject(HistoryManager())
         .environmentObject(GenerationService(historyManager: HistoryManager()))
         .frame(width: 900, height: 600)
+}
+
+#Preview("Detail View") {
+    HistoryDetailView(result: .preview(), onAddAudio: { _ in })
+        .environmentObject(HistoryManager())
+        .frame(width: 400, height: 600)
 }

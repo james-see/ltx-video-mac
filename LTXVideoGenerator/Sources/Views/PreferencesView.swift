@@ -46,6 +46,8 @@ struct PreferencesView: View {
     @AppStorage("autoLoadModel") private var autoLoadModel = false
     @AppStorage("keepCompletedInQueue") private var keepCompletedInQueue = false
     @AppStorage("selectedModelVariant") private var selectedModelVariant = "distilled"
+    @AppStorage("elevenLabsApiKey") private var elevenLabsApiKey = ""
+    @AppStorage("defaultAudioSource") private var defaultAudioSource = "elevenlabs"
     
     @State private var pythonStatus: (success: Bool, message: String)?
     @State private var pythonDetails: PythonDetails?
@@ -55,6 +57,8 @@ struct PreferencesView: View {
     @State private var detectedPaths: [String] = []
     @State private var showPathPicker = false
     @State private var installMessage: String?
+    @State private var isTestingElevenLabs = false
+    @State private var elevenLabsTestResult: (success: Bool, message: String)?
     
     var body: some View {
         TabView {
@@ -295,6 +299,70 @@ struct PreferencesView: View {
                 Label("Generation", systemImage: "wand.and.stars")
             }
             
+            // Audio
+            Form {
+                Section("ElevenLabs API") {
+                    SecureField("API Key", text: $elevenLabsApiKey)
+                        .textFieldStyle(.roundedBorder)
+                    
+                    HStack {
+                        if isTestingElevenLabs {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                            Text("Testing connection...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else if let result = elevenLabsTestResult {
+                            Image(systemName: result.success ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                .foregroundStyle(result.success ? .green : .red)
+                            Text(result.message)
+                                .font(.caption)
+                        }
+                        
+                        Spacer()
+                        
+                        Button("Test Connection") {
+                            testElevenLabsConnection()
+                        }
+                        .disabled(elevenLabsApiKey.isEmpty || isTestingElevenLabs)
+                    }
+                    
+                    Text("Get your API key from [elevenlabs.io](https://elevenlabs.io)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Section("Default Audio Source") {
+                    Picker("Default Source", selection: $defaultAudioSource) {
+                        Text("ElevenLabs (Cloud)").tag("elevenlabs")
+                        Text("MLX Audio (Local)").tag("mlx-audio")
+                    }
+                    .pickerStyle(.radioGroup)
+                    
+                    Text("ElevenLabs requires an API key but provides high-quality voices. MLX Audio runs locally on your Mac.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                
+                Section("MLX Audio") {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle.fill")
+                            .foregroundStyle(.blue)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Local Text-to-Speech")
+                                .font(.caption.bold())
+                            Text("MLX Audio runs entirely on your Mac using Apple Silicon. No API key required, but requires the mlx-audio Python package to be installed.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .tabItem {
+                Label("Audio", systemImage: "waveform")
+            }
+            
             // About
             VStack(spacing: 20) {
                 Image(systemName: "film.stack")
@@ -498,6 +566,48 @@ struct PreferencesView: View {
                 await MainActor.run {
                     isInstalling = false
                     installMessage = "Failed to create venv: \(createResult.message)"
+                }
+            }
+        }
+    }
+    
+    private func testElevenLabsConnection() {
+        isTestingElevenLabs = true
+        elevenLabsTestResult = nil
+        
+        Task {
+            do {
+                let url = URL(string: "https://api.elevenlabs.io/v1/user")!
+                var request = URLRequest(url: url)
+                request.setValue(elevenLabsApiKey, forHTTPHeaderField: "xi-api-key")
+                
+                let (data, response) = try await URLSession.shared.data(for: request)
+                
+                await MainActor.run {
+                    isTestingElevenLabs = false
+                    
+                    if let httpResponse = response as? HTTPURLResponse {
+                        if httpResponse.statusCode == 200 {
+                            // Try to parse user info
+                            if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let subscription = json["subscription"] as? [String: Any],
+                               let characterCount = subscription["character_count"] as? Int,
+                               let characterLimit = subscription["character_limit"] as? Int {
+                                elevenLabsTestResult = (true, "Connected! \(characterCount)/\(characterLimit) characters used")
+                            } else {
+                                elevenLabsTestResult = (true, "Connected successfully!")
+                            }
+                        } else if httpResponse.statusCode == 401 {
+                            elevenLabsTestResult = (false, "Invalid API key")
+                        } else {
+                            elevenLabsTestResult = (false, "Error: HTTP \(httpResponse.statusCode)")
+                        }
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isTestingElevenLabs = false
+                    elevenLabsTestResult = (false, "Connection failed: \(error.localizedDescription)")
                 }
             }
         }
