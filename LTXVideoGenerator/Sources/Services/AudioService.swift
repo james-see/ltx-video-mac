@@ -314,10 +314,11 @@ class AudioService: ObservableObject {
             isGenerating = false
         }
         
-        // Generate audio file path
+        // Generate audio file path - use same directory as the video
+        let videoDirectory = result.videoURL.deletingLastPathComponent()
         let audioFileName = "\(result.id.uuidString)_audio"
         let audioExtension = source == .elevenLabs ? "mp3" : "wav"
-        let audioPath = historyManager.videosDirectory
+        let audioPath = videoDirectory
             .appendingPathComponent("\(audioFileName).\(audioExtension)").path
         
         // Generate audio
@@ -347,7 +348,7 @@ class AudioService: ObservableObject {
         progressHandler(0.5, "Merging audio with video...")
         
         let outputFileName = "\(result.id.uuidString)_with_audio.mp4"
-        let outputPath = historyManager.videosDirectory.appendingPathComponent(outputFileName)
+        let outputPath = videoDirectory.appendingPathComponent(outputFileName)
         
         try await mergeAudioWithVideo(
             videoURL: result.videoURL,
