@@ -365,6 +365,7 @@ class AudioService: ObservableObject {
             requestId: result.requestId,
             prompt: result.prompt,
             negativePrompt: result.negativePrompt,
+            voiceoverText: result.voiceoverText,
             parameters: result.parameters,
             videoPath: outputPath.path,
             thumbnailPath: result.thumbnailPath,

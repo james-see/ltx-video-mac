@@ -7,9 +7,11 @@ struct PromptInputView: View {
     
     @Binding var prompt: String
     @Binding var negativePrompt: String
+    @Binding var voiceoverText: String
     @Binding var parameters: GenerationParameters
     
     @State private var showNegativePrompt = false
+    @State private var showVoiceover = false
     @State private var showImageToVideo = false
     @State private var sourceImagePath: String?
     @State private var sourceImageThumbnail: NSImage?
@@ -134,6 +136,37 @@ struct PromptInputView: View {
                     .foregroundStyle(.secondary)
             }
             
+            // Voiceover narration toggle
+            DisclosureGroup(isExpanded: $showVoiceover) {
+                VStack(alignment: .leading, spacing: 8) {
+                    TextEditor(text: $voiceoverText)
+                        .font(.body)
+                        .frame(height: 80)
+                        .scrollContentBackground(.hidden)
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(nsColor: .controlBackgroundColor))
+                        )
+                    
+                    Text("Optional narration text for audio. You can also add audio later from the History view by right-clicking any video thumbnail.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } label: {
+                HStack {
+                    Label("Voiceover / Narration", systemImage: "waveform")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    
+                    if !voiceoverText.isEmpty {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    }
+                }
+            }
+            
             // Quick actions
             HStack(spacing: 12) {
                 // Generate button - changes appearance based on state
@@ -239,6 +272,7 @@ struct PromptInputView: View {
         let request = GenerationRequest(
             prompt: prompt,
             negativePrompt: negativePrompt,
+            voiceoverText: voiceoverText,
             sourceImagePath: sourceImagePath,
             parameters: parameters
         )
@@ -249,6 +283,7 @@ struct PromptInputView: View {
         let request = GenerationRequest(
             prompt: prompt,
             negativePrompt: negativePrompt,
+            voiceoverText: voiceoverText,
             sourceImagePath: sourceImagePath,
             parameters: parameters
         )
@@ -260,6 +295,7 @@ struct PromptInputView: View {
             GenerationRequest(
                 prompt: prompt,
                 negativePrompt: negativePrompt,
+                voiceoverText: voiceoverText,
                 sourceImagePath: sourceImagePath,
                 parameters: GenerationParameters(
                     numInferenceSteps: parameters.numInferenceSteps,
@@ -330,6 +366,7 @@ struct PromptInputView: View {
     PromptInputView(
         prompt: .constant("A majestic eagle soaring through mountains"),
         negativePrompt: .constant(""),
+        voiceoverText: .constant(""),
         parameters: .constant(.default)
     )
     .environmentObject(GenerationService(historyManager: HistoryManager()))

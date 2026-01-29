@@ -4,6 +4,7 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
     let id: UUID
     let prompt: String
     let negativePrompt: String
+    let voiceoverText: String  // Optional voiceover narration text
     let sourceImagePath: String?  // For image-to-video mode
     var parameters: GenerationParameters
     let createdAt: Date
@@ -14,10 +15,16 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
         sourceImagePath != nil && !sourceImagePath!.isEmpty
     }
     
+    /// True if voiceover text is provided
+    var hasVoiceover: Bool {
+        !voiceoverText.isEmpty
+    }
+    
     init(
         id: UUID = UUID(),
         prompt: String,
         negativePrompt: String = "",
+        voiceoverText: String = "",
         sourceImagePath: String? = nil,
         parameters: GenerationParameters = .default,
         createdAt: Date = Date(),
@@ -26,6 +33,7 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
         self.id = id
         self.prompt = prompt
         self.negativePrompt = negativePrompt
+        self.voiceoverText = voiceoverText
         self.sourceImagePath = sourceImagePath
         self.parameters = parameters
         self.createdAt = createdAt

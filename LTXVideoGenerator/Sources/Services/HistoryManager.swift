@@ -160,6 +160,7 @@ class HistoryManager: ObservableObject {
                     requestId: result.requestId,
                     prompt: result.prompt,
                     negativePrompt: result.negativePrompt,
+                    voiceoverText: result.voiceoverText,
                     parameters: result.parameters,
                     videoPath: result.videoPath,
                     thumbnailPath: newPath,

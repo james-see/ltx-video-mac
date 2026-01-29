@@ -373,31 +373,39 @@ struct HistoryDetailView: View {
                         .padding(.vertical, 4)
                     }
                     
-                    // Actions
-                    HStack(spacing: 12) {
+                    // Actions - use icon buttons with tooltips for compact layout
+                    HStack(spacing: 8) {
                         Button {
                             historyManager.revealInFinder(result)
                         } label: {
-                            Label("Show in Finder", systemImage: "folder")
+                            Image(systemName: "folder")
                         }
+                        .buttonStyle(.bordered)
+                        .help("Show in Finder")
                         
                         ShareLink(item: result.videoURL) {
-                            Label("Share", systemImage: "square.and.arrow.up")
+                            Image(systemName: "square.and.arrow.up")
                         }
+                        .buttonStyle(.bordered)
+                        .help("Share")
                         
                         Button {
                             onAddAudio(result)
                         } label: {
-                            Label(result.hasAudio ? "Replace Audio" : "Add Audio", systemImage: "waveform")
+                            Image(systemName: "waveform")
                         }
+                        .buttonStyle(.bordered)
+                        .help(result.hasAudio ? "Replace Audio" : "Add Audio")
                         
                         Spacer()
                         
                         Button(role: .destructive) {
                             historyManager.deleteResult(result)
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Image(systemName: "trash")
                         }
+                        .buttonStyle(.bordered)
+                        .help("Delete")
                     }
                 }
                 .padding()

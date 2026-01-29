@@ -7,6 +7,7 @@ struct ContentView: View {
     
     @State private var prompt = ""
     @State private var negativePrompt = ""
+    @State private var voiceoverText = ""
     @State private var parameters = GenerationParameters.default
     @State private var selectedTab: Tab = .generate
     @State private var showError = false
@@ -70,6 +71,7 @@ struct ContentView: View {
             GenerateView(
                 prompt: $prompt,
                 negativePrompt: $negativePrompt,
+                voiceoverText: $voiceoverText,
                 parameters: $parameters
             )
         case .history:
@@ -214,6 +216,7 @@ struct ModelStatusView: View {
 struct GenerateView: View {
     @Binding var prompt: String
     @Binding var negativePrompt: String
+    @Binding var voiceoverText: String
     @Binding var parameters: GenerationParameters
     
     var body: some View {
@@ -228,6 +231,7 @@ struct GenerateView: View {
             PromptInputView(
                 prompt: $prompt,
                 negativePrompt: $negativePrompt,
+                voiceoverText: $voiceoverText,
                 parameters: $parameters
             )
             Spacer()

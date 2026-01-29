@@ -178,8 +178,12 @@ struct AddAudioView: View {
         }
         .frame(width: 500, height: 550)
         .onAppear {
-            // Pre-fill with video prompt
-            narrationText = result.prompt
+            // Pre-fill with voiceover text if available, otherwise use video prompt
+            if !result.voiceoverText.isEmpty {
+                narrationText = result.voiceoverText
+            } else {
+                narrationText = result.prompt
+            }
             
             // Set default source from preferences
             audioSource = AudioSource(rawValue: defaultAudioSource) ?? .elevenLabs

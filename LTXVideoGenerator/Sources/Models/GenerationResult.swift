@@ -5,6 +5,7 @@ struct GenerationResult: Identifiable, Codable {
     let requestId: UUID
     let prompt: String
     let negativePrompt: String
+    let voiceoverText: String  // Voiceover narration text (for audio generation)
     let parameters: GenerationParameters
     let videoPath: String
     let thumbnailPath: String?
@@ -54,6 +55,7 @@ extension GenerationResult {
             requestId: UUID(),
             prompt: "A cinematic shot of a majestic eagle soaring through mountains",
             negativePrompt: "",
+            voiceoverText: "",
             parameters: .default,
             videoPath: "/tmp/preview.mp4",
             thumbnailPath: nil,
