@@ -47,20 +47,52 @@ enum AudioSource: String, CaseIterable, Identifiable {
 struct ElevenLabsVoice: Identifiable, Codable {
     let voice_id: String
     let name: String
+    let accent: String
     
     var id: String { voice_id }
     
+    var displayName: String {
+        "\(name) (\(accent))"
+    }
+    
     static let defaultVoices: [ElevenLabsVoice] = [
-        ElevenLabsVoice(voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel"),
-        ElevenLabsVoice(voice_id: "AZnzlk1XvdvUeBnXmlld", name: "Domi"),
-        ElevenLabsVoice(voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Bella"),
-        ElevenLabsVoice(voice_id: "ErXwobaYiN019PkySvjV", name: "Antoni"),
-        ElevenLabsVoice(voice_id: "MF3mGyEYCl7XYWbV9V6O", name: "Elli"),
-        ElevenLabsVoice(voice_id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh"),
-        ElevenLabsVoice(voice_id: "VR6AewLTigWG4xSOukaG", name: "Arnold"),
-        ElevenLabsVoice(voice_id: "pNInz6obpgDQGcFmaJgB", name: "Adam"),
-        ElevenLabsVoice(voice_id: "yoZ06aMxZJJ28mfd3POQ", name: "Sam")
+        // American voices
+        ElevenLabsVoice(voice_id: "21m00Tcm4TlvDq8ikWAM", name: "Rachel", accent: "US Female"),
+        ElevenLabsVoice(voice_id: "EXAVITQu4vr4xnSDxMaL", name: "Sarah", accent: "US Female"),
+        ElevenLabsVoice(voice_id: "cgSgspJ2msm6clMCkdW9", name: "Jessica", accent: "US Female"),
+        ElevenLabsVoice(voice_id: "9BWtsMINqrJLrRacOk9x", name: "Aria", accent: "US Female"),
+        ElevenLabsVoice(voice_id: "pNInz6obpgDQGcFmaJgB", name: "Adam", accent: "US Male"),
+        ElevenLabsVoice(voice_id: "TxGEqnHWrfWFTfGW9XjX", name: "Josh", accent: "US Male"),
+        ElevenLabsVoice(voice_id: "nPczCjzI2devNBz1zQrb", name: "Brian", accent: "US Male"),
+        ElevenLabsVoice(voice_id: "cjVigY5qzO86Huf0OWal", name: "Eric", accent: "US Male"),
+        // British voices
+        ElevenLabsVoice(voice_id: "Xb7hH8MSUJpSbSDYk0k2", name: "Alice", accent: "UK Female"),
+        ElevenLabsVoice(voice_id: "pFZP5JQG7iQjIQuC4Bku", name: "Lily", accent: "UK Female"),
+        ElevenLabsVoice(voice_id: "XB0fDUnXU5powFXDhCwa", name: "Charlotte", accent: "UK Female"),
+        ElevenLabsVoice(voice_id: "onwK4e9ZLuTAKqWW03F9", name: "Daniel", accent: "UK Male"),
+        ElevenLabsVoice(voice_id: "JBFqnCBsd6RMkjVDRZzb", name: "George", accent: "UK Male"),
+        ElevenLabsVoice(voice_id: "SOYHLrjzK2X1ezoPC6cr", name: "Harry", accent: "UK Male"),
+        // Australian voices
+        ElevenLabsVoice(voice_id: "IKne3meq5aSn9XLyUdCD", name: "Charlie", accent: "AU Male"),
+        ElevenLabsVoice(voice_id: "XrExE9yKIg1WjnnlVkGX", name: "Matilda", accent: "AU Female")
     ]
+}
+
+/// Help text for ElevenLabs voice formatting
+enum ElevenLabsFormattingHelp {
+    static let tips = """
+    Formatting Tips:
+    • <break time="1s" /> - Add a pause (up to 3s)
+    • — or -- - Dash for short pause
+    • ... - Ellipsis adds hesitation
+    • CAPS - Adds emphasis
+    • "quotes" - Slightly different delivery
+    
+    Example:
+    "Welcome to the show. <break time="1s" /> Today... we explore the unknown."
+    """
+    
+    static let shortTip = "Use <break time=\"1s\" /> for pauses, ... for hesitation, CAPS for emphasis"
 }
 
 struct MLXAudioVoice: Identifiable {

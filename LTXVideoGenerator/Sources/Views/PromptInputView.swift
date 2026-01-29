@@ -189,17 +189,17 @@ struct PromptInputView: View {
                         if voiceoverSource == .elevenLabs {
                             Picker("", selection: $selectedElevenLabsVoice) {
                                 ForEach(ElevenLabsVoice.defaultVoices) { voice in
-                                    Text(voice.name).tag(voice.voice_id)
+                                    Text(voice.displayName).tag(voice.voice_id)
                                 }
                             }
-                            .frame(maxWidth: 200)
+                            .frame(maxWidth: 220)
                         } else {
                             Picker("", selection: $selectedMLXVoice) {
                                 ForEach(MLXAudioVoice.defaultVoices) { voice in
                                     Text(voice.name).tag(voice.id)
                                 }
                             }
-                            .frame(maxWidth: 200)
+                            .frame(maxWidth: 220)
                         }
                         
                         Spacer()
@@ -216,9 +216,20 @@ struct PromptInputView: View {
                                 .fill(Color(nsColor: .controlBackgroundColor))
                         )
                     
-                    Text("Optional narration text for audio. You can also add audio later from the History view.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Optional narration text. Add audio later from History view.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        
+                        Spacer()
+                        
+                        if voiceoverSource == .elevenLabs {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundStyle(.blue)
+                                .font(.caption)
+                                .help(ElevenLabsFormattingHelp.tips)
+                        }
+                    }
                 }
             } label: {
                 HStack {

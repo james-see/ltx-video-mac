@@ -334,7 +334,7 @@ struct VoiceoverSection: View {
                 if audioSource == .elevenLabs {
                     Picker("Voice", selection: $selectedElevenLabsVoice) {
                         ForEach(ElevenLabsVoice.defaultVoices) { voice in
-                            Text(voice.name).tag(voice.voice_id)
+                            Text(voice.displayName).tag(voice.voice_id)
                         }
                     }
                     .pickerStyle(.menu)
@@ -372,9 +372,19 @@ struct VoiceoverSection: View {
                             .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
                     )
                 
-                Text("\(narrationText.count) characters")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("\(narrationText.count) characters")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    
+                    Spacer()
+                    
+                    if audioSource == .elevenLabs {
+                        Image(systemName: "questionmark.circle")
+                            .foregroundStyle(.secondary)
+                            .help(ElevenLabsFormattingHelp.tips)
+                    }
+                }
             }
         }
     }
