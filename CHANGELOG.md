@@ -5,6 +5,21 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-01-29
+
+### Added
+- British voices: Alice, Lily, Charlotte, Daniel, George, Harry
+- Australian voices: Charlie, Matilda
+- ElevenLabs formatting help tooltip with pause/emphasis syntax
+  - `<break time="1s" />` for pauses up to 3 seconds
+  - `...` for hesitation
+  - CAPS for emphasis
+  - Dashes for short pauses
+
+### Changed
+- Voice picker now shows accent labels (e.g., "Rachel (US Female)")
+- Expanded US voice selection: Rachel, Sarah, Jessica, Aria, Adam, Josh, Brian, Eric
+
 ## [2.1.2] - 2026-01-29
 
 ### Fixed
