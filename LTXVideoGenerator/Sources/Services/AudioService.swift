@@ -658,7 +658,7 @@ class AudioService: ObservableObject {
         // -i: input files
         // -c:v copy: copy video stream without re-encoding
         // -c:a aac: encode audio as AAC
-        // -shortest: stop when shortest stream ends
+        // Note: Do NOT use -shortest as it truncates video to audio length
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = [
@@ -668,7 +668,6 @@ class AudioService: ObservableObject {
             "-c:v", "copy",
             "-c:a", "aac",
             "-b:a", "192k",
-            "-shortest",
             outputURL.path
         ]
         
@@ -964,6 +963,8 @@ class AudioService: ObservableObject {
         // FFmpeg command: combine video, voiceover, and music
         // Music is ducked (lowered volume) and voiceover is kept at full volume
         // Using amix filter to blend audio tracks
+        // Music loops via -stream_loop -1, -t matches video length
+        // duration=longest ensures music continues after voiceover ends
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = [
@@ -973,7 +974,7 @@ class AudioService: ObservableObject {
             "-stream_loop", "-1",
             "-i", musicURL.path,
             "-c:v", "copy",
-            "-filter_complex", "[1:a]volume=1.0[voice];[2:a]volume=0.2[music];[voice][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+            "-filter_complex", "[1:a]apad[voicepad];[voicepad]volume=1.0[voice];[2:a]volume=0.2[music];[voice][music]amix=inputs=2:duration=longest:dropout_transition=2[aout]",
             "-map", "0:v:0",
             "-map", "[aout]",
             "-c:a", "aac",
