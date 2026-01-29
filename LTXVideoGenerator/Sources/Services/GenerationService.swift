@@ -225,15 +225,13 @@ class GenerationService: ObservableObject {
                 }
             }
             
-            // Generate music if enabled
+            // Generate music if enabled (duration read from actual video file)
             if request.hasMusic, let genreRaw = request.musicGenre, let genre = MusicGenre(rawValue: genreRaw) {
                 statusMessage = "Generating background music..."
                 do {
-                    let videoDurationMs = Int((Double(request.parameters.numFrames) / Double(request.parameters.fps)) * 1000)
                     generationResult = try await audioService.addMusicToVideo(
                         result: generationResult,
                         genre: genre,
-                        durationMs: videoDurationMs,
                         historyManager: historyManager
                     ) { [weak self] prog, msg in
                         DispatchQueue.main.async {

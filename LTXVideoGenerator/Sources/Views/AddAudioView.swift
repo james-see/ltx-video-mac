@@ -258,13 +258,9 @@ struct AddAudioView: View {
     }
     
     private func generateMusic(for inputResult: GenerationResult) async throws -> GenerationResult {
-        // Calculate video duration in milliseconds
-        let videoDurationMs = Int((Double(inputResult.parameters.numFrames) / Double(inputResult.parameters.fps)) * 1000)
-        
         return try await audioService.addMusicToVideo(
             result: inputResult,
             genre: selectedMusicGenre,
-            durationMs: videoDurationMs,
             historyManager: historyManager
         ) { pct, msg in
             DispatchQueue.main.async {

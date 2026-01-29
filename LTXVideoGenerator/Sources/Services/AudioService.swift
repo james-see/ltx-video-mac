@@ -1,4 +1,5 @@
 import Foundation
+import AVFoundation
 
 enum AudioError: LocalizedError, Equatable {
     case elevenLabsKeyNotSet
@@ -784,12 +785,28 @@ class AudioService: ObservableObject {
         return updatedResult
     }
     
+    // MARK: - Video Duration Helper
+    
+    /// Get the actual duration of a video file in milliseconds
+    func getVideoDurationMs(url: URL) async -> Int? {
+        let asset = AVAsset(url: url)
+        do {
+            let duration = try await asset.load(.duration)
+            let seconds = CMTimeGetSeconds(duration)
+            if seconds.isFinite && seconds > 0 {
+                return Int(seconds * 1000)
+            }
+        } catch {
+            print("Failed to get video duration: \(error)")
+        }
+        return nil
+    }
+    
     // MARK: - Add Music to Video
     
     func addMusicToVideo(
         result: GenerationResult,
         genre: MusicGenre,
-        durationMs: Int,
         historyManager: HistoryManager,
         progressHandler: @escaping (Double, String) -> Void
     ) async throws -> GenerationResult {
@@ -802,13 +819,25 @@ class AudioService: ObservableObject {
             isGenerating = false
         }
         
+        // Get actual video duration from file
+        progressHandler(0.05, "Analyzing video duration...")
+        let fallbackDurationMs = Int((Double(result.parameters.numFrames) / Double(result.parameters.fps)) * 1000)
+        let durationMs: Int
+        if let actualDuration = await getVideoDurationMs(url: result.videoURL) {
+            durationMs = actualDuration
+            print("Using actual video duration: \(durationMs)ms")
+        } else {
+            durationMs = fallbackDurationMs
+            print("Could not get video duration from file, using calculated: \(durationMs)ms")
+        }
+        
         // Generate music file path - use same directory as the video
         let videoDirectory = result.videoURL.deletingLastPathComponent()
         let musicFileName = "\(result.id.uuidString)_music.mp3"
         let musicPath = videoDirectory.appendingPathComponent(musicFileName).path
         
         // Generate music
-        progressHandler(0.1, "Generating \(genre.displayName) music...")
+        progressHandler(0.1, "Generating \(genre.displayName) music (\(durationMs / 1000)s)...")
         
         let musicURL = try await generateMusic(
             genre: genre,
