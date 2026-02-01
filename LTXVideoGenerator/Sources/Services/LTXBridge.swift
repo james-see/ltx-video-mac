@@ -183,10 +183,12 @@ class LTXBridge {
         let script: String
         if isUnifiedAV {
             // Unified Audio-Video model - uses mlx-video-with-audio package
+            // Run as module: python -m mlx_video.generate_av (CLI entry point)
             script = """
 import os
 import sys
 import json
+import subprocess
 
 # Set up file logging
 log_file = open("\(logFile)", "w")
@@ -202,9 +204,6 @@ try:
     import mlx.core as mx
     log(f"MLX device: Apple Silicon")
     
-    # Import unified audio-video generation module
-    from mlx_video.generate_av import generate_av
-    
     model_repo = "\(modelRepo)"
     log(f"Model: {model_repo}")
     
@@ -213,28 +212,52 @@ try:
     mode = "image-to-video" if source_image_path else "text-to-video"
     log(f"Mode: {mode} (with audio)")
     
-    prompt = "\(escapedPrompt)"
+    prompt = '''\(escapedPrompt)'''
     log(f"Prompt: {prompt[:100]}...")
     log(f"Size: \(genWidth)x\(genHeight), \(params.numFrames) frames")
     log(f"Seed: \(seed)")
     
-    # Build generation kwargs for unified AV model
-    gen_kwargs = {
-        "model_repo": model_repo,
-        "prompt": prompt,
-        "height": \(genHeight),
-        "width": \(genWidth),
-        "num_frames": \(params.numFrames),
-        "output": "\(outputPath)",
-    }
+    # Build CLI args for mlx_video.generate_av module
+    cmd = [
+        sys.executable, "-m", "mlx_video.generate_av",
+        "--prompt", prompt,
+        "--height", str(\(genHeight)),
+        "--width", str(\(genWidth)),
+        "--num-frames", str(\(params.numFrames)),
+        "--seed", str(\(seed)),
+        "--fps", str(\(params.fps)),
+        "--output-path", "\(outputPath)",
+        "--model-repo", model_repo,
+    ]
     
     # Add image conditioning if provided
     if source_image_path:
-        gen_kwargs["image"] = source_image_path
+        cmd.extend(["--image", source_image_path])
         log(f"Image conditioning: {source_image_path}")
     
     log("Starting generation with synchronized audio...")
-    generate_av(**gen_kwargs)
+    log(f"Command: {' '.join(cmd)}")
+    
+    # Run the CLI module and stream output
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True
+    )
+    
+    # Stream stderr for progress updates
+    for line in process.stderr:
+        line = line.strip()
+        if line:
+            log(line)
+            print(line, file=sys.stderr)
+    
+    # Wait for completion
+    stdout, _ = process.communicate()
+    
+    if process.returncode != 0:
+        raise RuntimeError(f"mlx_video.generate_av failed with code {process.returncode}")
     
     log(f"Video with audio saved to: \(outputPath)")
     log("Generation complete!")
