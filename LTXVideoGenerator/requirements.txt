@@ -36,4 +36,4 @@ mlx-audio>=0.2.0
 
 # Unified audio-video generation (DEFAULT model)
 # Generates video with synchronized audio in a single pass
-mlx-video-with-audio>=0.1.2
+mlx-video-with-audio>=0.1.3
