@@ -226,6 +226,8 @@ try:
     log(f"Seed: \(seed)")
     
     # Build CLI args for mlx_video.generate_av module
+    # Note: mlx_video.generate_av uses --enhance-prompt/--temperature
+    # instead of --repetition-penalty/--top-p
     cmd = [
         sys.executable, "-m", "mlx_video.generate_av",
         "--prompt", prompt,
@@ -237,9 +239,16 @@ try:
         "--output-path", "\(outputPath)",
         "--model-repo", model_repo,
         "--tiling", "\(params.vaeTilingMode)",
-        "--repetition-penalty", str(\(request.gemmaRepetitionPenalty)),
-        "--top-p", str(\(request.gemmaTopP)),
     ]
+    
+    # Map Gemma enhancement params to mlx_video's --enhance-prompt flag
+    # Enable enhancement when user changed params from defaults
+    gemma_rp = \(request.gemmaRepetitionPenalty)
+    gemma_tp = \(request.gemmaTopP)
+    if gemma_rp != 1.2 or gemma_tp != 0.9:
+        cmd.append("--enhance-prompt")
+        # Map top_p to temperature (lower top_p = more focused = lower temp)
+        cmd.extend(["--temperature", str(gemma_tp)])
     
     # Add image conditioning if provided
     if source_image_path:
