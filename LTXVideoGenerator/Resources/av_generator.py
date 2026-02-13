@@ -71,6 +71,45 @@ def main():
         default=None,
         help="Input image for image-to-video generation",
     )
+    parser.add_argument(
+        "--image-strength",
+        type=float,
+        default=1.0,
+        help="Image conditioning strength (0.0-1.0)",
+    )
+    parser.add_argument(
+        "--tiling",
+        type=str,
+        default="auto",
+        choices=[
+            "auto",
+            "none",
+            "default",
+            "aggressive",
+            "conservative",
+            "spatial",
+            "temporal",
+        ],
+        help="Tiling mode for VAE decoding",
+    )
+    parser.add_argument(
+        "--no-audio",
+        action="store_true",
+        default=False,
+        help="Disable audio generation (video only)",
+    )
+    parser.add_argument(
+        "--repetition-penalty",
+        type=float,
+        default=1.2,
+        help="Gemma prompt enhancement repetition penalty (1.0-2.0)",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.9,
+        help="Gemma prompt enhancement top-p sampling (0.0-1.0)",
+    )
 
     args = parser.parse_args()
 
@@ -99,9 +138,28 @@ def main():
         # Add image conditioning if provided
         if args.image:
             gen_kwargs["image"] = args.image
-            status_output(f"Using source image: {args.image}")
+            gen_kwargs["image_strength"] = args.image_strength
+            status_output(
+                f"Using source image: {args.image} (strength={args.image_strength})"
+            )
 
-        status_output("Generating video with synchronized audio...")
+        # Pass tiling mode if supported
+        if args.tiling != "auto":
+            gen_kwargs["tiling"] = args.tiling
+
+        # Disable audio if requested
+        if args.no_audio:
+            gen_kwargs["no_audio"] = True
+            status_output("Audio generation disabled")
+
+        # Pass Gemma prompt enhancement params if non-default
+        if args.repetition_penalty != 1.2:
+            gen_kwargs["repetition_penalty"] = args.repetition_penalty
+        if args.top_p != 0.9:
+            gen_kwargs["top_p"] = args.top_p
+
+        audio_label = "without" if args.no_audio else "with synchronized"
+        status_output(f"Generating video {audio_label} audio...")
         generate_av(**gen_kwargs)
 
         status_output(f"Video with audio saved to: {args.output_path}")
@@ -112,7 +170,7 @@ def main():
             "video_path": args.output_path,
             "seed": args.seed,
             "mode": "i2v" if is_i2v else "t2v",
-            "has_audio": True,
+            "has_audio": not args.no_audio,
         }
         print(json.dumps(result))
 

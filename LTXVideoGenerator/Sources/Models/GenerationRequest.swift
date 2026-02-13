@@ -10,6 +10,9 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
     let sourceImagePath: String?  // For image-to-video mode
     let musicEnabled: Bool       // Whether to generate background music
     let musicGenre: String?      // Music genre raw value
+    let disableAudio: Bool       // Skip audio in unified AV model
+    let gemmaRepetitionPenalty: Double  // Gemma prompt enhancement repetition penalty
+    let gemmaTopP: Double              // Gemma prompt enhancement top-p sampling
     var parameters: GenerationParameters
     let createdAt: Date
     var status: GenerationStatus
@@ -39,6 +42,9 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
         sourceImagePath: String? = nil,
         musicEnabled: Bool = false,
         musicGenre: String? = nil,
+        disableAudio: Bool = false,
+        gemmaRepetitionPenalty: Double = 1.2,
+        gemmaTopP: Double = 0.9,
         parameters: GenerationParameters = .default,
         createdAt: Date = Date(),
         status: GenerationStatus = .pending
@@ -52,6 +58,9 @@ struct GenerationRequest: Identifiable, Codable, Equatable {
         self.sourceImagePath = sourceImagePath
         self.musicEnabled = musicEnabled
         self.musicGenre = musicGenre
+        self.disableAudio = disableAudio
+        self.gemmaRepetitionPenalty = gemmaRepetitionPenalty
+        self.gemmaTopP = gemmaTopP
         self.parameters = parameters
         self.createdAt = createdAt
         self.status = status
@@ -74,38 +83,46 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     var numFrames: Int
     var fps: Int
     var seed: Int?
+    var vaeTilingMode: String
+    var imageStrength: Double
     
     // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
-        numInferenceSteps: 40,
-        guidanceScale: 4.0,
+        numInferenceSteps: 30,
+        guidanceScale: 3.0,
         width: 768,
         height: 512,
         numFrames: 121,
         fps: 24,
-        seed: nil
+        seed: nil,
+        vaeTilingMode: "auto",
+        imageStrength: 1.0
     )
     
     // Quick preview - fewer frames and steps
     static let preview = GenerationParameters(
-        numInferenceSteps: 20,
-        guidanceScale: 4.0,
+        numInferenceSteps: 15,
+        guidanceScale: 3.0,
         width: 512,
         height: 320,
         numFrames: 49,
         fps: 24,
-        seed: nil
+        seed: nil,
+        vaeTilingMode: "auto",
+        imageStrength: 1.0
     )
     
     // High quality - more steps
     static let highQuality = GenerationParameters(
-        numInferenceSteps: 50,
-        guidanceScale: 4.0,
+        numInferenceSteps: 40,
+        guidanceScale: 3.0,
         width: 768,
         height: 512,
         numFrames: 121,
         fps: 24,
-        seed: nil
+        seed: nil,
+        vaeTilingMode: "auto",
+        imageStrength: 1.0
     )
     
     var estimatedDuration: String {

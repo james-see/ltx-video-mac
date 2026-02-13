@@ -30,6 +30,14 @@ struct PromptInputView: View {
     @State private var musicEnabled = false
     @State private var selectedMusicGenre: MusicGenre = .cinematicUplifting
     
+    // Audio disable for unified model
+    @State private var disableAudio = false
+    
+    // Gemma prompt enhancement
+    @State private var showPromptEnhancement = false
+    @State private var gemmaRepetitionPenalty: Double = 1.2
+    @State private var gemmaTopP: Double = 0.9
+    
     // Computed property for current model
     private var currentModelVariant: LTXModelVariant {
         LTXModelVariant(rawValue: selectedModelVariant) ?? .unifiedAV
@@ -57,6 +65,38 @@ struct PromptInputView: View {
                             .stroke(isPromptFocused ? Color.accentColor : Color.clear, lineWidth: 2)
                     )
                     .focused($isPromptFocused)
+            }
+            
+            // Gemma Prompt Enhancement
+            DisclosureGroup(isExpanded: $showPromptEnhancement) {
+                VStack(alignment: .leading, spacing: 12) {
+                    ParameterSlider(
+                        title: "Repetition Penalty",
+                        value: $gemmaRepetitionPenalty,
+                        range: 1.0...2.0,
+                        step: 0.05,
+                        icon: "arrow.triangle.2.circlepath",
+                        format: "%.2f"
+                    )
+                    
+                    ParameterSlider(
+                        title: "Top-P",
+                        value: $gemmaTopP,
+                        range: 0.0...1.0,
+                        step: 0.05,
+                        icon: "chart.bar.fill",
+                        format: "%.2f"
+                    )
+                    
+                    Text("Controls Gemma prompt rewriting. Higher repetition penalty reduces repeated phrases. Lower top-p makes output more focused.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("Prompt Enhancement (Gemma)", systemImage: "sparkles")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
             }
             
             // Image-to-Video section
@@ -120,6 +160,23 @@ struct PromptInputView: View {
                     Text("Select an image to use as the first frame. Your prompt should describe the motion/action.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    
+                    if sourceImagePath != nil {
+                        Divider()
+                        
+                        ParameterSlider(
+                            title: "Image Strength",
+                            value: $parameters.imageStrength,
+                            range: 0.0...1.0,
+                            step: 0.05,
+                            icon: "photo.fill",
+                            format: "%.2f"
+                        )
+                        
+                        Text("How strongly the source image influences generation. 1.0 = exact first frame, lower = more creative freedom.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 .padding(.top, 8)
             } label: {
@@ -156,20 +213,26 @@ struct PromptInputView: View {
             // Audio included banner for unified model
             if currentModelVariant.supportsBuiltInAudio {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "waveform.badge.checkmark")
-                        .foregroundStyle(.green)
+                    Image(systemName: disableAudio ? "waveform.badge.minus" : "waveform.badge.checkmark")
+                        .foregroundColor(disableAudio ? .secondary : .green)
                         .font(.title3)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Audio Included")
-                            .font(.caption.bold())
-                        Text("Your selected model generates synchronized audio automatically. You can still add voiceover or music on top if desired.")
+                        Toggle("Generate Audio", isOn: Binding(
+                            get: { !disableAudio },
+                            set: { disableAudio = !$0 }
+                        ))
+                        .font(.caption.bold())
+                        
+                        Text(disableAudio
+                            ? "Audio generation is disabled. Video will be silent (faster)."
+                            : "Synchronized audio will be generated automatically.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.green.opacity(0.1))
+                .background(disableAudio ? Color.secondary.opacity(0.05) : Color.green.opacity(0.1))
                 .cornerRadius(8)
             }
             
@@ -442,6 +505,9 @@ struct PromptInputView: View {
             sourceImagePath: sourceImagePath,
             musicEnabled: musicEnabled,
             musicGenre: musicEnabled ? selectedMusicGenre.rawValue : nil,
+            disableAudio: disableAudio,
+            gemmaRepetitionPenalty: gemmaRepetitionPenalty,
+            gemmaTopP: gemmaTopP,
             parameters: parameters
         )
         generationService.addToQueue(request)
@@ -457,6 +523,9 @@ struct PromptInputView: View {
             sourceImagePath: sourceImagePath,
             musicEnabled: musicEnabled,
             musicGenre: musicEnabled ? selectedMusicGenre.rawValue : nil,
+            disableAudio: disableAudio,
+            gemmaRepetitionPenalty: gemmaRepetitionPenalty,
+            gemmaTopP: gemmaTopP,
             parameters: parameters
         )
         generationService.addToQueue(request)
@@ -473,6 +542,9 @@ struct PromptInputView: View {
                 sourceImagePath: sourceImagePath,
                 musicEnabled: musicEnabled,
                 musicGenre: musicEnabled ? selectedMusicGenre.rawValue : nil,
+                disableAudio: disableAudio,
+                gemmaRepetitionPenalty: gemmaRepetitionPenalty,
+                gemmaTopP: gemmaTopP,
                 parameters: GenerationParameters(
                     numInferenceSteps: parameters.numInferenceSteps,
                     guidanceScale: parameters.guidanceScale,
@@ -480,7 +552,9 @@ struct PromptInputView: View {
                     height: parameters.height,
                     numFrames: parameters.numFrames,
                     fps: parameters.fps,
-                    seed: Int.random(in: 0..<Int(Int32.max))
+                    seed: Int.random(in: 0..<Int(Int32.max)),
+                    vaeTilingMode: parameters.vaeTilingMode,
+                    imageStrength: parameters.imageStrength
                 )
             )
         }

@@ -203,6 +203,30 @@ struct ParametersView: View {
                         }
                     }
                     
+                    Divider()
+                    
+                    // VAE Tiling Mode
+                    VStack(alignment: .leading, spacing: 8) {
+                        Label("VAE Tiling", systemImage: "square.grid.3x3")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        Picker("", selection: $parameters.vaeTilingMode) {
+                            Text("Auto").tag("auto")
+                            Text("None").tag("none")
+                            Text("Default").tag("default")
+                            Text("Aggressive").tag("aggressive")
+                            Text("Conservative").tag("conservative")
+                            Text("Spatial Only").tag("spatial")
+                            Text("Temporal Only").tag("temporal")
+                        }
+                        .labelsHidden()
+                        
+                        Text("Controls memory vs speed tradeoff during decoding. Aggressive uses less memory; Conservative is faster but needs more memory.")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    
                     // Estimated time
                     HStack {
                         Image(systemName: "clock")

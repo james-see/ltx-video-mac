@@ -147,6 +147,87 @@ def denoise(
     return latents
 
 
+def enhance_prompt(
+    prompt: str,
+    language_model,
+    processor,
+    system_prompt: str,
+    repetition_penalty: float = 1.2,
+    top_p: float = 0.9,
+    max_new_tokens: int = 256,
+) -> str:
+    """Enhance a prompt using Gemma language model generation."""
+    status_output("Enhancing prompt with Gemma...")
+
+    chat_input = f"{system_prompt}\n\nUser prompt: {prompt}\n\nEnhanced prompt:"
+    inputs = processor(
+        chat_input,
+        return_tensors="np",
+        max_length=1024,
+        truncation=True,
+        padding=False,
+    )
+    input_ids = mx.array(inputs["input_ids"])
+    attention_mask = mx.array(inputs["attention_mask"])
+
+    generated = input_ids
+    for _ in range(max_new_tokens):
+        hidden, _ = language_model(
+            inputs=generated,
+            attention_mask=mx.ones((1, generated.shape[1]), dtype=mx.int32),
+            output_hidden_states=False,
+        )
+        # Get logits from final hidden state via embed_tokens weight (tied)
+        embed_weight = language_model.model.embed_tokens.weight
+        logits = hidden[:, -1:, :] @ embed_weight.T
+        logits = logits.squeeze(1)
+
+        # Apply repetition penalty
+        if repetition_penalty != 1.0:
+            for token_id in set(generated[0].tolist()):
+                current = logits[0, token_id]
+                if current > 0:
+                    logits = logits.at[0, token_id].add(
+                        -current * (1 - 1.0 / repetition_penalty)
+                    )
+                else:
+                    logits = logits.at[0, token_id].add(
+                        -current * (repetition_penalty - 1)
+                    )
+
+        # Apply top-p sampling
+        sorted_indices = mx.argsort(-logits, axis=-1)
+        sorted_logits = mx.take_along_axis(logits, sorted_indices, axis=-1)
+        probs = mx.softmax(sorted_logits, axis=-1)
+        cumsum = mx.cumsum(probs, axis=-1)
+        mask = cumsum - probs <= top_p
+        filtered = mx.where(mask, sorted_logits, mx.full(sorted_logits.shape, -1e9))
+        filtered_probs = mx.softmax(filtered, axis=-1)
+        sampled_idx = mx.random.categorical(mx.log(filtered_probs + 1e-10))
+        next_token = mx.take_along_axis(
+            sorted_indices, sampled_idx.reshape(1, 1), axis=-1
+        )
+        mx.eval(next_token)
+
+        # Check for EOS (token id 1 for Gemma)
+        if int(next_token[0, 0]) in (1, 107):
+            break
+
+        generated = mx.concatenate([generated, next_token], axis=-1)
+        mx.eval(generated)
+
+    # Decode only the new tokens
+    new_tokens = generated[0, input_ids.shape[1] :].tolist()
+    enhanced = processor.decode(new_tokens, skip_special_tokens=True).strip()
+
+    if enhanced:
+        status_output(f"Enhanced prompt: {enhanced[:100]}...")
+        return enhanced
+    else:
+        status_output("Prompt enhancement produced no output, using original prompt")
+        return prompt
+
+
 def generate_video(
     model_repo: str = "mlx-community/LTX-2-distilled-bf16",
     text_encoder_repo: str = None,
@@ -162,6 +243,8 @@ def generate_video(
     image_strength: float = 1.0,
     image_frame_idx: int = 0,
     tiling: str = "auto",
+    repetition_penalty: float = 1.2,
+    top_p: float = 0.9,
 ):
     """Generate video from text prompt."""
     start_time = time.time()
@@ -204,6 +287,32 @@ def generate_video(
     text_encoder = LTX2TextEncoder()
     text_encoder.load(model_path=model_path, text_encoder_path=text_encoder_path)
     mx.eval(text_encoder.parameters())
+
+    # Enhance prompt with Gemma if non-default params are provided
+    if repetition_penalty != 1.2 or top_p != 0.9:
+        from pathlib import Path as _Path
+
+        prompts_dir = _Path(__file__).parent / "models" / "ltx" / "prompts"
+        if is_i2v:
+            sys_prompt_file = prompts_dir / "gemma_i2v_system_prompt.txt"
+        else:
+            sys_prompt_file = prompts_dir / "gemma_t2v_system_prompt.txt"
+        sys_prompt = ""
+        if sys_prompt_file.exists():
+            sys_prompt = sys_prompt_file.read_text().strip()
+        if (
+            sys_prompt
+            and text_encoder.language_model is not None
+            and text_encoder.processor is not None
+        ):
+            prompt = enhance_prompt(
+                prompt=prompt,
+                language_model=text_encoder.language_model,
+                processor=text_encoder.processor,
+                system_prompt=sys_prompt,
+                repetition_penalty=repetition_penalty,
+                top_p=top_p,
+            )
 
     status_output("Encoding prompt...")
     text_embeddings, _ = text_encoder(prompt, return_audio_embeddings=False)
@@ -502,6 +611,18 @@ if __name__ == "__main__":
             "temporal",
         ],
         help="Tiling mode",
+    )
+    parser.add_argument(
+        "--repetition-penalty",
+        type=float,
+        default=1.2,
+        help="Gemma prompt enhancement repetition penalty",
+    )
+    parser.add_argument(
+        "--top-p",
+        type=float,
+        default=0.9,
+        help="Gemma prompt enhancement top-p sampling",
     )
     args = parser.parse_args()
 

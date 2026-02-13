@@ -171,12 +171,20 @@ class LTXBridge {
             "--fps", String(params.fps),
             "--output-path", outputPath,
             "--model-repo", modelRepo,
-            "--tiling", "auto"
+            "--tiling", params.vaeTilingMode,
+            "--repetition-penalty", String(request.gemmaRepetitionPenalty),
+            "--top-p", String(request.gemmaTopP)
         ]
         
         // Add image conditioning if provided
         if isImageToVideo, let imagePath = request.sourceImagePath {
             scriptArgs.append(contentsOf: ["--image", imagePath])
+            scriptArgs.append(contentsOf: ["--image-strength", String(params.imageStrength)])
+        }
+        
+        // Add no-audio flag for unified model if audio is disabled
+        if isUnifiedAV && request.disableAudio {
+            scriptArgs.append("--no-audio")
         }
         
         // Generate different scripts based on model variant
@@ -228,14 +236,24 @@ try:
         "--fps", str(\(params.fps)),
         "--output-path", "\(outputPath)",
         "--model-repo", model_repo,
+        "--tiling", "\(params.vaeTilingMode)",
+        "--repetition-penalty", str(\(request.gemmaRepetitionPenalty)),
+        "--top-p", str(\(request.gemmaTopP)),
     ]
     
     # Add image conditioning if provided
     if source_image_path:
         cmd.extend(["--image", source_image_path])
+        cmd.extend(["--image-strength", str(\(params.imageStrength))])
         log(f"Image conditioning: {source_image_path}")
     
-    log("Starting generation with synchronized audio...")
+    # Disable audio if requested
+    disable_audio = \(request.disableAudio ? "True" : "False")
+    if disable_audio:
+        cmd.append("--no-audio")
+        log("Audio generation disabled")
+    
+    log("Starting generation...")
     log(f"Command: {' '.join(cmd)}")
     
     # Run the CLI module and stream output
@@ -262,7 +280,7 @@ try:
     log(f"Video with audio saved to: \(outputPath)")
     log("Generation complete!")
     log_file.close()
-    print(json.dumps({"video_path": "\(outputPath)", "seed": \(seed), "mode": mode, "has_audio": True}))
+    print(json.dumps({"video_path": "\(outputPath)", "seed": \(seed), "mode": mode, "has_audio": not disable_audio}))
 except Exception as e:
     log(f"ERROR: {e}")
     import traceback
@@ -321,13 +339,15 @@ try:
         "seed": \(seed),
         "fps": \(params.fps),
         "output_path": "\(outputPath)",
-        "tiling": "auto",
+        "tiling": "\(params.vaeTilingMode)",
+        "repetition_penalty": \(request.gemmaRepetitionPenalty),
+        "top_p": \(request.gemmaTopP),
     }
     
     # Add image conditioning if provided
     if source_image_path:
         gen_kwargs["image"] = source_image_path
-        gen_kwargs["image_strength"] = 1.0
+        gen_kwargs["image_strength"] = \(params.imageStrength)
         gen_kwargs["image_frame_idx"] = 0
         log(f"Image conditioning: {source_image_path}")
     

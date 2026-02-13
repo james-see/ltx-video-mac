@@ -41,39 +41,45 @@ struct Preset: Identifiable, Codable, Equatable, Hashable {
         Preset(
             name: "Portrait",
             parameters: GenerationParameters(
-                numInferenceSteps: 40,
-                guidanceScale: 4.0,
+                numInferenceSteps: 30,
+                guidanceScale: 3.0,
                 width: 512,
                 height: 768,
                 numFrames: 121,
                 fps: 24,
-                seed: nil
+                seed: nil,
+                vaeTilingMode: "auto",
+                imageStrength: 1.0
             ),
             isBuiltIn: true
         ),
         Preset(
             name: "Square",
             parameters: GenerationParameters(
-                numInferenceSteps: 40,
-                guidanceScale: 4.0,
+                numInferenceSteps: 30,
+                guidanceScale: 3.0,
                 width: 512,
                 height: 512,
                 numFrames: 121,
                 fps: 24,
-                seed: nil
+                seed: nil,
+                vaeTilingMode: "auto",
+                imageStrength: 1.0
             ),
             isBuiltIn: true
         ),
         Preset(
             name: "Cinematic 21:9",
             parameters: GenerationParameters(
-                numInferenceSteps: 40,
-                guidanceScale: 4.0,
+                numInferenceSteps: 30,
+                guidanceScale: 3.0,
                 width: 768,
                 height: 320,
                 numFrames: 121,
                 fps: 24,
-                seed: nil
+                seed: nil,
+                vaeTilingMode: "auto",
+                imageStrength: 1.0
             ),
             isBuiltIn: true
         )

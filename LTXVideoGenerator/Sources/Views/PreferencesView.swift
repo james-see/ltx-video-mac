@@ -29,15 +29,15 @@ enum LTXModelVariant: String, CaseIterable, Identifiable {
     
     var recommendedSteps: Int {
         switch self {
-        case .unifiedAV: return 8
-        case .distilled: return 8
+        case .unifiedAV: return 30
+        case .distilled: return 30
         }
     }
     
     var recommendedGuidance: Double {
         switch self {
-        case .unifiedAV: return 1.0
-        case .distilled: return 1.0  // CFG=1 for distilled
+        case .unifiedAV: return 3.0
+        case .distilled: return 3.0
         }
     }
     
