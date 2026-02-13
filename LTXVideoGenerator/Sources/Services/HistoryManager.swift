@@ -159,6 +159,7 @@ class HistoryManager: ObservableObject {
                     id: result.id,
                     requestId: result.requestId,
                     prompt: result.prompt,
+                    enhancedPrompt: result.enhancedPrompt,
                     negativePrompt: result.negativePrompt,
                     voiceoverText: result.voiceoverText,
                     voiceoverSource: result.voiceoverSource,

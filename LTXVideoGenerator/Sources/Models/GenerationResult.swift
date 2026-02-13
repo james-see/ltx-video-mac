@@ -4,6 +4,7 @@ struct GenerationResult: Identifiable, Codable {
     let id: UUID
     let requestId: UUID
     let prompt: String
+    let enhancedPrompt: String?  // AI-enhanced prompt (if Gemma enhancement was used)
     let negativePrompt: String
     let voiceoverText: String  // Voiceover narration text (for audio generation)
     let voiceoverSource: String  // "elevenlabs" or "mlx-audio"
@@ -66,6 +67,7 @@ extension GenerationResult {
             id: UUID(),
             requestId: UUID(),
             prompt: "A cinematic shot of a majestic eagle soaring through mountains",
+            enhancedPrompt: "A breathtaking cinematic aerial shot captures a majestic bald eagle soaring gracefully through snow-capped mountain peaks at golden hour",
             negativePrompt: "",
             voiceoverText: "",
             voiceoverSource: "mlx-audio",

@@ -332,6 +332,22 @@ struct HistoryDetailView: View {
                             .textSelection(.enabled)
                     }
                     
+                    if let enhanced = result.enhancedPrompt {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 4) {
+                                Image(systemName: "sparkles")
+                                    .font(.caption)
+                                Text("Enhanced Prompt")
+                                    .font(.caption)
+                            }
+                            .foregroundStyle(.purple)
+                            Text(enhanced)
+                                .font(.callout)
+                                .foregroundStyle(.secondary)
+                                .textSelection(.enabled)
+                        }
+                    }
+                    
                     if !result.negativePrompt.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             Text("Negative Prompt")

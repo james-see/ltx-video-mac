@@ -5,6 +5,18 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-02-12
+
+### Added
+- **Enhanced Prompt Display** - When Gemma prompt enhancement is used, the rewritten prompt is now captured and displayed in the video archive detail view with a sparkle icon and purple label
+- Enhanced prompt is preserved in generation history and persists across sessions
+
+### Technical
+- Python `generate.py` emits `ENHANCED_PROMPT:` on stderr for structured capture by Swift bridge
+- `LTXBridge` parses enhanced prompt from stderr output (supports both custom and mlx_video formats)
+- `GenerationResult` model extended with optional `enhancedPrompt` field (backward-compatible via Codable)
+- All `GenerationResult` construction sites updated across `GenerationService`, `AudioService`, and `HistoryManager`
+
 ## [2.3.1] - 2026-02-12
 
 ### Fixed

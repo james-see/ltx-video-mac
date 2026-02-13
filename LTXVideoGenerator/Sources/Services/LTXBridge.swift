@@ -114,7 +114,7 @@ class LTXBridge {
         request: GenerationRequest,
         outputPath: String,
         progressHandler: @escaping (Double, String) -> Void
-    ) async throws -> (videoPath: String, seed: Int) {
+    ) async throws -> (videoPath: String, seed: Int, enhancedPrompt: String?) {
         setupPythonPaths()
         
         guard let _ = pythonExecutable else {
@@ -378,7 +378,28 @@ except Exception as e:
         
         progressHandler(0.05, "Running MLX generation...")
         
+        // Thread-safe capture of enhanced prompt from stderr
+        let enhancedPromptLock = NSLock()
+        var capturedEnhancedPrompt: String? = nil
+        
         let output = try await runPython(script: script, timeout: 3600) { stderr in
+            // Capture enhanced prompt from stderr
+            // Our generate.py emits "ENHANCED_PROMPT:..." and mlx_video may emit "Enhanced prompt: ..."
+            for line in stderr.components(separatedBy: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+                var extracted: String? = nil
+                if trimmed.hasPrefix("ENHANCED_PROMPT:") {
+                    extracted = String(trimmed.dropFirst("ENHANCED_PROMPT:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                } else if trimmed.lowercased().hasPrefix("enhanced prompt:") {
+                    extracted = String(trimmed.dropFirst("enhanced prompt:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                if let text = extracted, !text.isEmpty {
+                    enhancedPromptLock.lock()
+                    capturedEnhancedPrompt = text
+                    enhancedPromptLock.unlock()
+                }
+            }
+            
             DispatchQueue.main.async {
                 // Parse structured progress output from generate.py
                 // Format: STAGE:X:STEP:Y:Z:message or STATUS:message or DOWNLOAD:START/COMPLETE:repo
@@ -468,7 +489,8 @@ except Exception as e:
                let videoPath = json["video_path"] as? String,
                let resultSeed = json["seed"] as? Int {
                 progressHandler(1.0, "Complete!")
-                return (videoPath, resultSeed)
+                // Safe to read without lock: runPython has completed, no more stderr callbacks
+                return (videoPath, resultSeed, capturedEnhancedPrompt)
             }
         }
         

@@ -222,6 +222,9 @@ def enhance_prompt(
 
     if enhanced:
         status_output(f"Enhanced prompt: {enhanced[:100]}...")
+        # Emit structured output for Swift to capture
+        print(f"ENHANCED_PROMPT:{enhanced}", file=sys.stderr)
+        sys.stderr.flush()
         return enhanced
     else:
         status_output("Prompt enhancement produced no output, using original prompt")
