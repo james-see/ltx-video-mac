@@ -22,7 +22,6 @@ struct PromptInputView: View {
     // Audio settings
     @AppStorage("elevenLabsApiKey") private var elevenLabsApiKey = ""
     @AppStorage("enableGemmaPromptEnhancement") private var enableGemmaPromptEnhancement = false
-    @AppStorage("useUncensoredEnhancer") private var useUncensoredEnhancer = false
     @State private var voiceoverSource: AudioSource = .mlxAudio
     @State private var selectedElevenLabsVoice: String = "21m00Tcm4TlvDq8ikWAM"
     @State private var selectedMLXVoice: String = "af_heart"
@@ -73,7 +72,7 @@ struct PromptInputView: View {
             DisclosureGroup(isExpanded: $showPromptEnhancement) {
                 VStack(alignment: .leading, spacing: 12) {
                     if !enableGemmaPromptEnhancement {
-                        Text("Turn on in Settings to use Gemma prompt rewriting.")
+                        Text("Turn on in Settings to use prompt rewriting.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -98,7 +97,7 @@ struct PromptInputView: View {
                     .disabled(!enableGemmaPromptEnhancement)
                     
                     if enableGemmaPromptEnhancement {
-                        Text("Controls Gemma prompt rewriting. Higher repetition penalty reduces repeated phrases. Lower top-p makes output more focused.")
+                        Text("Controls prompt rewriting. Higher repetition penalty reduces repeated phrases. Lower top-p makes output more focused.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Button {
@@ -123,7 +122,7 @@ struct PromptInputView: View {
                 .padding(.top, 8)
                 .opacity(enableGemmaPromptEnhancement ? 1 : 0.6)
             } label: {
-                Label("Prompt Enhancement (Gemma)", systemImage: "sparkles")
+                Label("Prompt Enhancement", systemImage: "sparkles")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
@@ -546,8 +545,7 @@ struct PromptInputView: View {
                 prompt: prompt,
                 modelRepo: LTXModelVariant.modelRepo,
                 temperature: gemmaTopP,
-                sourceImagePath: sourceImagePath,
-                useUncensoredEnhancer: useUncensoredEnhancer
+                sourceImagePath: sourceImagePath
             ) { status in
                 DispatchQueue.main.async { previewStatusMessage = status }
             }

@@ -5,6 +5,8 @@ Outputs JSON: {"enhanced_prompt": "..."} or {"error": "..."}
 
 When enhancement returns empty (e.g. safety filter), auto-retries with suspected
 filtered words replaced by placeholders, then merges originals back into the result.
+
+Always uses MLX uncensored Gemma via mlx_lm (~7GB, no Lightricks/LTX-2 download).
 """
 
 import argparse
@@ -12,6 +14,8 @@ import json
 import re
 import sys
 from pathlib import Path
+
+ENHANCER_MODEL = "TheCluster/amoral-gemma-3-12B-v2-mlx-4bit"
 
 # Words that commonly trigger Gemma/content filters (lowercase)
 SUSPECTED_FILTERED_WORDS = [
@@ -51,6 +55,67 @@ def _merge_back(enhanced: str, replacements: dict[str, str]) -> str:
     return result
 
 
+def _apply_chat_template(system_prompt: str, user_content: str) -> str:
+    """Apply Gemma 3 chat template."""
+    formatted = f"<start_of_turn>user\n{system_prompt}<end_of_turn>\n"
+    formatted += f"<start_of_turn>user\n{user_content}<end_of_turn>\n"
+    formatted += "<start_of_turn>model\n"
+    return formatted
+
+
+def _clean_response(response: str) -> str:
+    """Clean up the generated response."""
+    response = response.strip()
+    response = re.sub(r"^[^\w\s]+", "", response)
+    return response
+
+
+def _enhance_with_mlx_lm(
+    prompt: str,
+    model_repo: str,
+    system_prompt: str | None,
+    temperature: float,
+    seed: int,
+    max_tokens: int,
+    verbose: bool,
+) -> str:
+    """Enhance prompt using mlx_lm with given MLX model. No Lightricks/LTX-2 download."""
+    try:
+        from mlx_lm import load, generate
+    except ImportError:
+        print("mlx-lm not available. Install: pip install mlx-lm", file=sys.stderr)
+        return prompt
+
+    print(f"Loading prompt enhancer ({model_repo}, first run ~7GB)...", file=sys.stderr, flush=True)
+    model, tokenizer = load(model_repo)
+
+    if system_prompt is None:
+        try:
+            from mlx_video.models.ltx.enhance_prompt import _load_system_prompt
+            system_prompt = _load_system_prompt("gemma_t2v_system_prompt.txt")
+        except Exception:
+            system_prompt = "You are a creative writer. Expand the user's short video prompt into a detailed, vivid description suitable for AI video generation. Include lighting, camera movement, and atmosphere."
+
+    user_content = f"user prompt: {prompt}"
+    formatted = _apply_chat_template(system_prompt, user_content)
+
+    import mlx.core as mx
+    mx.random.seed(seed)
+
+    response = generate(
+        model,
+        tokenizer,
+        prompt=formatted,
+        max_tokens=max_tokens,
+        temp=temperature,
+        verbose=verbose,
+    )
+
+    del model
+    mx.clear_cache()
+    return _clean_response(response)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Preview Gemma-enhanced prompt")
     parser.add_argument("--prompt", "-p", required=True, help="User prompt to enhance")
@@ -76,61 +141,9 @@ def main():
         help="App Resources path for bundled prompts (pre-flight injection)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument(
-        "--use-uncensored-enhancer",
-        action="store_true",
-        help="Use uncensored Gemma 12B (avoids content filters)",
-    )
     args = parser.parse_args()
 
     try:
-        # Uncensored enhancer path: use mlx_lm with TheCluster model
-        if args.use_uncensored_enhancer:
-            # Pre-flight: inject bundled prompts if mlx_video is missing them
-            if args.resources_path:
-                try:
-                    from pathlib import Path as P
-                    import shutil
-
-                    resources_path = P(args.resources_path)
-                    bundled_prompts = (
-                        resources_path / "ltx_mlx" / "models" / "ltx" / "prompts"
-                    )
-                    import mlx_video.models.ltx.text_encoder as te
-
-                    target_dir = P(te.__file__).parent / "prompts"
-                    for name in [
-                        "gemma_t2v_system_prompt.txt",
-                        "gemma_i2v_system_prompt.txt",
-                    ]:
-                        src = bundled_prompts / name
-                        dst = target_dir / name
-                        if src.exists() and not dst.exists():
-                            target_dir.mkdir(parents=True, exist_ok=True)
-                            shutil.copy2(src, dst)
-                except Exception:
-                    pass
-            from mlx_video.models.ltx.enhance_prompt import enhance_with_model
-
-            system_prompt = None
-            if args.image:
-                try:
-                    from mlx_video.models.ltx.enhance_prompt import _load_system_prompt
-
-                    system_prompt = _load_system_prompt("gemma_i2v_system_prompt.txt")
-                except Exception:
-                    pass
-            enhanced = enhance_with_model(
-                args.prompt,
-                system_prompt=system_prompt,
-                temperature=args.temperature,
-                seed=args.seed,
-                max_tokens=256,
-                verbose=False,
-            )
-            print(json.dumps({"enhanced_prompt": enhanced or ""}))
-            return
-
         # Pre-flight: inject bundled prompts if mlx_video is missing them
         if args.resources_path:
             try:
@@ -154,52 +167,28 @@ def main():
                         target_dir.mkdir(parents=True, exist_ok=True)
                         shutil.copy2(src, dst)
             except Exception:
-                pass  # Non-fatal
+                pass
 
-        from mlx_video.utils import get_model_path
-        from mlx_video.models.ltx.text_encoder import LTX2TextEncoder
+        # Always use MLX uncensored Gemma via mlx_lm
+        model_repo = ENHANCER_MODEL
 
-        model_path = get_model_path(args.model_repo)
-        model_path = Path(model_path)
-
-        # Unified MLX models (e.g. notapalindrome/ltx2-mlx-av) have model.safetensors but no
-        # text_config in config.json. The text encoder must load from the HuggingFace model.
-        is_unified = (model_path / "model.safetensors").exists() and not (
-            model_path / "ltx-2-19b-distilled.safetensors"
-        ).exists()
-        if is_unified:
-            text_encoder_path = get_model_path("Lightricks/LTX-2")
-        else:
-            text_encoder_path = model_path
-
-        text_encoder = LTX2TextEncoder()
-        text_encoder.load(model_path=model_path, text_encoder_path=text_encoder_path)
-        import mlx.core as mx
-
-        mx.eval(text_encoder.parameters())
-
-        is_i2v = args.image is not None
         system_prompt = None
-        if is_i2v:
+        if args.image:
             try:
-                import mlx_video.models.ltx.text_encoder as te
-
-                prompt_path = (
-                    Path(te.__file__).parent / "prompts" / "gemma_i2v_system_prompt.txt"
-                )
-                if prompt_path.exists():
-                    system_prompt = prompt_path.read_text().strip()
+                from mlx_video.models.ltx.enhance_prompt import _load_system_prompt
+                system_prompt = _load_system_prompt("gemma_i2v_system_prompt.txt")
             except Exception:
                 pass
 
         def do_enhance(p: str):
-            return text_encoder.enhance_t2v(
+            return _enhance_with_mlx_lm(
                 p,
-                max_tokens=256,
+                model_repo=model_repo,
+                system_prompt=system_prompt,
                 temperature=args.temperature,
                 seed=args.seed,
+                max_tokens=256,
                 verbose=False,
-                system_prompt=system_prompt,
             )
 
         enhanced = do_enhance(args.prompt)
@@ -211,9 +200,6 @@ def main():
                 enhanced = do_enhance(sanitized)
                 if enhanced and enhanced.strip():
                     enhanced = _merge_back(enhanced, replacements)
-
-        del text_encoder
-        mx.clear_cache()
 
         print(json.dumps({"enhanced_prompt": enhanced or ""}))
 

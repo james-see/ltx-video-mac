@@ -151,7 +151,6 @@ class LTXBridge {
         
         let script: String
         let enableGemmaPromptEnhancement = UserDefaults.standard.bool(forKey: "enableGemmaPromptEnhancement")
-        let useUncensoredEnhancer = UserDefaults.standard.bool(forKey: "useUncensoredEnhancer")
         let saveAudioTrackSeparately = UserDefaults.standard.bool(forKey: "saveAudioTrackSeparately")
         // LTX-2 Unified - uses mlx-video-with-audio package
         script = """
@@ -205,9 +204,8 @@ try:
     
     # Add --enhance-prompt only when enabled in Settings
     enable_enhancement = \(enableGemmaPromptEnhancement ? "True" : "False")
-    if enable_enhancement:
-        cmd.append("--enhance-prompt")
-        if \(useUncensoredEnhancer ? "True" : "False"):
+        if enable_enhancement:
+            cmd.append("--enhance-prompt")
             cmd.append("--use-uncensored-enhancer")
         cmd.extend(["--temperature", str(\(request.gemmaTopP))])
         # Pre-flight: copy bundled prompts into mlx_video if missing (pip package omits them)
@@ -370,13 +368,28 @@ except Exception as e:
                 } else if stderr.hasPrefix("DOWNLOAD:COMPLETE:") {
                     progressHandler(0.08, "Model download complete")
                 } else if stderr.contains("Downloading") || stderr.contains("Fetching") {
-                    // Fallback for tqdm/huggingface_hub progress (legacy)
-                    if let match = stderr.firstMatch(of: /(\d+)%\|[^|]*\|\s*(\d+)\/(\d+)/) {
+                    // huggingface_hub tqdm: "Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]"
+                    // Per-file bytes: "model.safetensors:  45%|████▌     | 2.3G/5.1G" - parse bytes if present
+                    let fileCountPattern = #/(\d+)%\|[^|]*\|\s*(\d+)/(\d+)/#
+                    if let match = stderr.firstMatch(of: fileCountPattern) {
                         let currentFile = Int(match.2) ?? 0
                         let totalFiles = Int(match.3) ?? 1
-                        let percent = Double(currentFile) / Double(totalFiles)
-                        let mappedProgress = 0.01 + (percent * 0.07)
-                        progressHandler(mappedProgress, "Downloading: \(currentFile)/\(totalFiles) files")
+                        var filePercent = Double(currentFile) / Double(max(totalFiles, 1))
+                        var message = "Downloading: \(currentFile)/\(totalFiles) files"
+                        // Bytes progress: "| 2.3G/5.1G" or "| 45MB/100MB"
+                        if let bytesMatch = stderr.firstMatch(of: #/\|\s*([\d.]+)([KMG]?)B?\/([\d.]+)([KMG]?)B?/#) {
+                            let curVal = Double(bytesMatch.1) ?? 0
+                            let totVal = Double(bytesMatch.3) ?? 1
+                            let unit = String(bytesMatch.2)
+                            let scale: Double = unit == "G" ? 1 : (unit == "M" ? 0.001 : 0.000001)
+                            let curGB = curVal * scale
+                            let totGB = totVal * scale
+                            let pct = totVal > 0 ? Int(100 * curVal / totVal) : 0
+                            filePercent = (Double(currentFile) + Double(pct) / 100.0) / Double(max(totalFiles, 1))
+                            message = String(format: "Downloading: %.1fGB / %.1fGB (file %d/%d, %d%%)", curGB, totGB, currentFile + 1, totalFiles, pct)
+                        }
+                        let mappedProgress = 0.01 + (filePercent * 0.07)
+                        progressHandler(mappedProgress, message)
                     }
                 }
             }
@@ -387,7 +400,7 @@ except Exception as e:
         if let jsonStart = output.range(of: "{\"video_path\""),
            let jsonEnd = output.range(of: "}", range: jsonStart.lowerBound..<output.endIndex) {
             let jsonString = String(output[jsonStart.lowerBound...jsonEnd.lowerBound])
-            if let data = jsonString.data(using: .utf8),
+            if let data = jsonString.data(using: String.Encoding.utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let videoPath = json["video_path"] as? String,
                let resultSeed = json["seed"] as? Int {
@@ -410,7 +423,6 @@ except Exception as e:
         modelRepo: String,
         temperature: Double,
         sourceImagePath: String?,
-        useUncensoredEnhancer: Bool = false,
         progressHandler: @escaping (String) -> Void
     ) async throws -> String? {
         setupPythonPaths()
@@ -432,12 +444,7 @@ except Exception as e:
         if let img = sourceImagePath, !img.isEmpty {
             args.append(contentsOf: ["--image", img])
         }
-        if useUncensoredEnhancer {
-            args.append("--use-uncensored-enhancer")
-        }
-        progressHandler(useUncensoredEnhancer
-            ? "Loading uncensored enhancer (first run may download ~7GB)..."
-            : "Loading Gemma for enhancement...")
+        progressHandler("Loading prompt enhancer (first run may download ~7GB)...")
         let output = try await runPythonScript(executable: python, arguments: args, timeout: 120)
         if let data = output.data(using: .utf8),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
@@ -538,6 +545,7 @@ except Exception as e:
                     if !data.isEmpty, let str = String(data: data, encoding: .utf8) {
                         stderrLock.lock()
                         stderrAccumulated += str
+                        let accumulated = stderrAccumulated
                         stderrLock.unlock()
                         
                         if let logData = ("[STDERR] " + str).data(using: .utf8) {
@@ -552,7 +560,7 @@ except Exception as e:
                             }
                         }
                         
-                        stderrHandler?(str)
+                        stderrHandler?(accumulated)
                     }
                 }
                 

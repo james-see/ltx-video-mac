@@ -5,6 +5,17 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.9] - 2026-02-22
+
+### Added
+- **Auto-upgrade mlx-video-with-audio** - App checks installed version and auto-upgrades to >=0.1.5 if older.
+- **Improved download progress** - Parses huggingface_hub tqdm output for file count and bytes (e.g. "Downloading: 5.2GB / 5.4GB (file 1/13, 96%)").
+
+### Changed
+- **Prompt enhancement simplified** - Single toggle: Enable Prompt Enhancement on/off. Always uses MLX uncensored Gemma (TheCluster/amoral-gemma-3-12B-v2-mlx-4bit, ~7GB). Removed "Use uncensored enhancer" sub-toggle.
+- **MLX-only enhancer** - Preview and generation use mlx_lm with amoral-gemma; no Lightricks/LTX-2 download for enhancement.
+- Progress handler now receives accumulated stderr for accurate parsing across chunked output.
+
 ## [2.3.8] - 2026-02-22
 
 ### Added

@@ -8,18 +8,23 @@ struct PythonDetails {
     let pythonHome: String
     let hasRequiredPackages: Bool
     let missingPackages: [String]
+    let packagesNeedingUpgrade: [String]  // e.g. ["mlx-video-with-audio>=0.1.5"]
     let hasMLX: Bool  // True if MLX is available
-    
-    init(version: String, executablePath: String, dylibPath: String?, pythonHome: String, hasRequiredPackages: Bool, missingPackages: [String], hasMLX: Bool = false) {
+
+    init(version: String, executablePath: String, dylibPath: String?, pythonHome: String, hasRequiredPackages: Bool, missingPackages: [String], packagesNeedingUpgrade: [String] = [], hasMLX: Bool = false) {
         self.version = version
         self.executablePath = executablePath
         self.dylibPath = dylibPath
         self.pythonHome = pythonHome
         self.hasRequiredPackages = hasRequiredPackages
         self.missingPackages = missingPackages
+        self.packagesNeedingUpgrade = packagesNeedingUpgrade
         self.hasMLX = hasMLX
     }
 }
+
+/// Minimum mlx-video-with-audio version (uncensored enhancer, save-audio-separately)
+private let mlxVideoMinVersion = "0.1.5"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
@@ -170,7 +175,8 @@ class PythonEnvironment {
     // MARK: - Subprocess Validation (Safe - Won't Crash)
     
     /// Validate Python installation using subprocess - safe and won't crash the app
-    func validateWithSubprocess(path: String) async -> (success: Bool, message: String, details: PythonDetails?) {
+    /// If packages need upgrade (e.g. mlx-video-with-audio), auto-upgrades once and re-validates
+    func validateWithSubprocess(path: String, alreadyTriedUpgrade: Bool = false) async -> (success: Bool, message: String, details: PythonDetails?) {
         // Step 1: Check file exists
         guard FileManager.default.fileExists(atPath: path) else {
             return (false, "File not found: \(path)", nil)
@@ -260,9 +266,21 @@ class PythonEnvironment {
                 hasMLX = true
             }
         }
-        
-        let hasRequired = missingPackages.isEmpty && hasMLX
-        
+
+        // Check mlx-video-with-audio version if installed (not in missingPackages)
+        var packagesNeedingUpgrade: [String] = []
+        if !missingPackages.contains("mlx-video-with-audio") {
+            let versionScript = "import mlx_video.version; print(mlx_video.version.__version__)"
+            if let installedVersion = runPythonSync(executable: executablePath, script: versionScript)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !installedVersion.isEmpty,
+               compareVersions(installedVersion, lessThan: mlxVideoMinVersion) {
+                packagesNeedingUpgrade.append("mlx-video-with-audio>=\(mlxVideoMinVersion)")
+            }
+        }
+
+        let hasRequired = missingPackages.isEmpty && hasMLX && packagesNeedingUpgrade.isEmpty
+
         let details = PythonDetails(
             version: version,
             executablePath: executablePath,
@@ -270,6 +288,7 @@ class PythonEnvironment {
             pythonHome: pythonHome,
             hasRequiredPackages: hasRequired,
             missingPackages: missingPackages,
+            packagesNeedingUpgrade: packagesNeedingUpgrade,
             hasMLX: hasMLX
         )
         
@@ -277,12 +296,39 @@ class PythonEnvironment {
             let pipCommand = "pip install \(missingPackages.joined(separator: " "))"
             return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details)
         }
-        
+
         if !hasMLX {
             return (false, "Python \(version) found but MLX not properly configured. Ensure you're on Apple Silicon.", details)
         }
-        
+
+        // Auto-upgrade outdated packages (e.g. mlx-video-with-audio) and re-validate
+        if !packagesNeedingUpgrade.isEmpty && !alreadyTriedUpgrade {
+            let (upgradeSuccess, upgradeMessage) = await installPackages(pythonExecutable: executablePath, packages: packagesNeedingUpgrade, upgrade: true)
+            if upgradeSuccess {
+                return await validateWithSubprocess(path: path, alreadyTriedUpgrade: true)
+            }
+            return (false, "Upgrade failed: \(upgradeMessage)", details)
+        }
+
+        if !packagesNeedingUpgrade.isEmpty {
+            return (false, "Python \(version) found but mlx-video-with-audio needs upgrade. Run: pip install -U \"mlx-video-with-audio>=\(mlxVideoMinVersion)\"", details)
+        }
+
         return (true, "Python \(version) configured with MLX", details)
+    }
+
+    /// Compare semantic versions. Returns true if a < b
+    private func compareVersions(_ a: String, lessThan b: String) -> Bool {
+        let aParts = a.split(separator: ".").compactMap { Int($0) }
+        let bParts = b.split(separator: ".").compactMap { Int($0) }
+        let maxLen = max(aParts.count, bParts.count)
+        for i in 0..<maxLen {
+            let av = i < aParts.count ? aParts[i] : 0
+            let bv = i < bParts.count ? bParts[i] : 0
+            if av < bv { return true }
+            if av > bv { return false }
+        }
+        return false
     }
     
     /// Run Python script synchronously and return output (safe - uses subprocess)
@@ -555,19 +601,23 @@ class PythonEnvironment {
     // MARK: - Package Installation
     
     /// Install missing packages using pip
-    func installPackages(pythonExecutable: String, packages: [String]) async -> (success: Bool, message: String) {
+    func installPackages(pythonExecutable: String, packages: [String], upgrade: Bool = false) async -> (success: Bool, message: String) {
         let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
             .replacingOccurrences(of: "/python", with: "/pip")
-        
+
         let usePipModule = !FileManager.default.isExecutableFile(atPath: pipPath)
-        
+
+        var installArgs = ["install"]
+        if upgrade { installArgs.append("-U") }
+        installArgs.append(contentsOf: packages)
+
         let process = Process()
         if usePipModule {
             process.executableURL = URL(fileURLWithPath: pythonExecutable)
-            process.arguments = ["-m", "pip", "install"] + packages
+            process.arguments = ["-m", "pip"] + installArgs
         } else {
             process.executableURL = URL(fileURLWithPath: pipPath)
-            process.arguments = ["install"] + packages
+            process.arguments = installArgs
         }
         
         var env = ProcessInfo.processInfo.environment
@@ -683,7 +733,7 @@ class PythonEnvironment {
             result = await validateWithSubprocess(path: path)
             semaphore.signal()
         }
-        _ = semaphore.wait(timeout: .now() + 30)
+        _ = semaphore.wait(timeout: .now() + 120)  // Allow time for auto-upgrade
         
         return result
     }
