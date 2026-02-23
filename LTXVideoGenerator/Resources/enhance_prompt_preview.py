@@ -87,12 +87,17 @@ def _enhance_with_mlx_lm(
         print("mlx-lm not available. Install: pip install mlx-lm", file=sys.stderr)
         return prompt
 
-    print(f"Loading prompt enhancer ({model_repo}, first run ~7GB)...", file=sys.stderr, flush=True)
+    print(
+        f"Loading prompt enhancer ({model_repo}, first run ~7GB)...",
+        file=sys.stderr,
+        flush=True,
+    )
     model, tokenizer = load(model_repo)
 
     if system_prompt is None:
         try:
             from mlx_video.models.ltx.enhance_prompt import _load_system_prompt
+
             system_prompt = _load_system_prompt("gemma_t2v_system_prompt.txt")
         except Exception:
             system_prompt = "You are a creative writer. Expand the user's short video prompt into a detailed, vivid description suitable for AI video generation. Include lighting, camera movement, and atmosphere."
@@ -101,6 +106,7 @@ def _enhance_with_mlx_lm(
     formatted = _apply_chat_template(system_prompt, user_content)
 
     import mlx.core as mx
+
     mx.random.seed(seed)
 
     # mlx-lm 0.25+ uses sampler instead of temp kwarg (generate_step rejects temp)
@@ -154,9 +160,7 @@ def main():
                 import shutil
 
                 resources_path = P(args.resources_path)
-                bundled_prompts = (
-                    resources_path / "ltx_mlx" / "models" / "ltx" / "prompts"
-                )
+                bundled_prompts = resources_path / "prompts"
                 import mlx_video.models.ltx.text_encoder as te
 
                 target_dir = P(te.__file__).parent / "prompts"
@@ -179,6 +183,7 @@ def main():
         if args.image:
             try:
                 from mlx_video.models.ltx.enhance_prompt import _load_system_prompt
+
                 system_prompt = _load_system_prompt("gemma_i2v_system_prompt.txt")
             except Exception:
                 pass

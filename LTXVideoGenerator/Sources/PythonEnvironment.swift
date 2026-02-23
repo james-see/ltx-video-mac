@@ -23,8 +23,8 @@ struct PythonDetails {
     }
 }
 
-/// Minimum mlx-video-with-audio version (uncensored enhancer, save-audio-separately)
-private let mlxVideoMinVersion = "0.1.6"
+/// Minimum mlx-video-with-audio version (unified model fix, no Lightricks download)
+private let mlxVideoMinVersion = "0.1.7"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
@@ -236,11 +236,11 @@ class PythonEnvironment {
         let pythonHome = runPythonSync(executable: executablePath, script: homeScript)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         
-        // Step 7: Check for required packages (bundled ltx_mlx uses these)
+        // Step 7: Check for required packages (mlx_video and audio generation)
         var missingPackages: [String] = []
         var hasMLX = false
         
-        // Required packages for bundled ltx_mlx and audio generation
+        // Required packages for mlx_video and audio generation
         // Format: (importName, pipName, isGitPackage)
         let requiredPackages: [(String, String, Bool)] = [
             ("mlx.core", "mlx", false),

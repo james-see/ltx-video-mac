@@ -25,7 +25,7 @@
 		AA000021 /* PythonKit in Frameworks */ = {isa = PBXBuildFile; productRef = AA000022; };
 		AA000023 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA000024; };
 		AA000025 /* APIServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000026; };
-		AA000027 /* ltx_mlx in Resources */ = {isa = PBXBuildFile; fileRef = AA000028; };
+		AA000027 /* prompts in Resources */ = {isa = PBXBuildFile; fileRef = AA000028; };
 		AA000029 /* audio_generator.py in Resources */ = {isa = PBXBuildFile; fileRef = AA00002A; };
 		AA000031 /* enhance_prompt_preview.py in Resources */ = {isa = PBXBuildFile; fileRef = AA000032; };
 		AA00002B /* AudioService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00002C; };
@@ -50,7 +50,7 @@
 		AA00001E /* PreferencesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferencesView.swift; sourceTree = "<group>"; };
 		AA000024 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		AA000026 /* APIServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIServer.swift; sourceTree = "<group>"; };
-		AA000028 /* ltx_mlx */ = {isa = PBXFileReference; lastKnownFileType = folder; path = ltx_mlx; sourceTree = "<group>"; };
+		AA000028 /* prompts */ = {isa = PBXFileReference; lastKnownFileType = folder; path = prompts; sourceTree = "<group>"; };
 		AA00002A /* audio_generator.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = audio_generator.py; sourceTree = "<group>"; };
 		AA000032 /* enhance_prompt_preview.py */ = {isa = PBXFileReference; lastKnownFileType = text.script.python; path = enhance_prompt_preview.py; sourceTree = "<group>"; };
 		AA00002C /* AudioService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioService.swift; sourceTree = "<group>"; };
@@ -97,7 +97,7 @@
 			children = (
 				AA00002A /* audio_generator.py */,
 				AA000032 /* enhance_prompt_preview.py */,
-				AA000028 /* ltx_mlx */,
+				AA000028 /* prompts */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -214,7 +214,7 @@
 				AA000023 /* Assets.xcassets in Resources */,
 				AA000029 /* audio_generator.py in Resources */,
 				AA000031 /* enhance_prompt_preview.py in Resources */,
-				AA000027 /* ltx_mlx in Resources */,
+				AA000027 /* prompts in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

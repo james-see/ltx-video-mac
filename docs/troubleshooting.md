@@ -102,6 +102,21 @@ To force a fresh download:
 rm -rf ~/.cache/huggingface/hub/models--notapalindrome--ltx2-mlx-av
 ```
 
+### "App downloaded Lightricks/LTX-2 (~150GB) - I only want the unified model"
+
+**Problem:** Cache grew to 400GB+ because both the unified model (~42GB) and Lightricks/LTX-2 (~150GB) were downloaded. The app now uses only the unified model (`notapalindrome/ltx2-mlx-av`).
+
+**Solution:** Remove the unused Lightricks cache to free ~150GB:
+```bash
+# See cache sizes
+du -sh ~/.cache/huggingface/hub/*
+
+# Remove Lightricks model (app no longer uses it)
+rm -rf ~/.cache/huggingface/hub/models--Lightricks--LTX-2
+```
+
+Keep `models--notapalindrome--ltx2-mlx-av` (~42GB) - that's the model the app uses.
+
 ---
 
 ## Generation Issues

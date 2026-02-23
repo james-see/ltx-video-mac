@@ -106,7 +106,7 @@ class LTXBridge {
             throw LTXError.pythonNotConfigured
         }
         
-        progressHandler("MLX environment ready. Model will download on first generation (~90GB).")
+        progressHandler("MLX environment ready. Model will download on first generation (~42GB).")
         isModelLoaded = true
     }
     
@@ -213,7 +213,7 @@ try:
             from pathlib import Path
             import shutil
             resources_path = Path("\(resourcesPath)")
-            bundled_prompts = resources_path / "ltx_mlx" / "models" / "ltx" / "prompts"
+            bundled_prompts = resources_path / "prompts"
             import mlx_video.models.ltx.text_encoder as te
             target_dir = Path(te.__file__).parent / "prompts"
             for name in ["gemma_t2v_system_prompt.txt", "gemma_i2v_system_prompt.txt"]:
