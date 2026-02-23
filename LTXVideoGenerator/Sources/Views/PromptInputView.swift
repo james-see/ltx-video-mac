@@ -524,6 +524,7 @@ struct PromptInputView: View {
         .sheet(isPresented: $showEnhancedPreview) {
             EnhancedPreviewSheet(
                 enhancedPrompt: enhancedPreview ?? "",
+                originalPrompt: prompt,
                 error: previewError,
                 onDismiss: {
                     showEnhancedPreview = false
@@ -680,8 +681,18 @@ struct PromptInputView: View {
 
 private struct EnhancedPreviewSheet: View {
     let enhancedPrompt: String
+    let originalPrompt: String
     let error: String?
     let onDismiss: () -> Void
+
+    private var displayText: String {
+        if !enhancedPrompt.isEmpty { return enhancedPrompt }
+        return originalPrompt
+    }
+
+    private var isEmptyNote: String? {
+        enhancedPrompt.isEmpty && !originalPrompt.isEmpty ? "Enhancement produced no output (possibly filtered). Showing your original prompt:" : nil
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -697,9 +708,14 @@ private struct EnhancedPreviewSheet: View {
                     .foregroundStyle(.red)
                     .font(.caption)
             }
-            if !enhancedPrompt.isEmpty {
+            if let note = isEmptyNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if !displayText.isEmpty {
                 ScrollView {
-                    Text(enhancedPrompt)
+                    Text(displayText)
                         .font(.body)
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)

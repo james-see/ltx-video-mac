@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.6] - 2026-02-22
+
+### Added
+- **Filtered-word retry** - When Gemma prompt enhancement returns empty (e.g. safety filter on words like "urine", "piss"), the preview script now auto-retries with suspected filtered words replaced by placeholders, then merges the originals back into the enhanced result.
+
+### Changed
+- `enhance_prompt_preview.py`: Maintains a list of commonly filtered words; on empty enhancement, sanitizes prompt, retries, and restores original wording.
+
 ## [2.3.5] - 2026-02-22
 
 ### Removed
