@@ -204,9 +204,9 @@ try:
     
     # Add --enhance-prompt only when enabled in Settings
     enable_enhancement = \(enableGemmaPromptEnhancement ? "True" : "False")
-        if enable_enhancement:
-            cmd.append("--enhance-prompt")
-            cmd.append("--use-uncensored-enhancer")
+    if enable_enhancement:
+        cmd.append("--enhance-prompt")
+        cmd.append("--use-uncensored-enhancer")
         cmd.extend(["--temperature", str(\(request.gemmaTopP))])
         # Pre-flight: copy bundled prompts into mlx_video if missing (pip package omits them)
         try:
