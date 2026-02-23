@@ -24,7 +24,7 @@ struct PythonDetails {
 }
 
 /// Minimum mlx-video-with-audio version (uncensored enhancer, save-audio-separately)
-private let mlxVideoMinVersion = "0.1.5"
+private let mlxVideoMinVersion = "0.1.6"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes

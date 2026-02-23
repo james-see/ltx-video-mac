@@ -82,6 +82,7 @@ def _enhance_with_mlx_lm(
     """Enhance prompt using mlx_lm with given MLX model. No Lightricks/LTX-2 download."""
     try:
         from mlx_lm import load, generate
+        from mlx_lm.sample_utils import make_sampler
     except ImportError:
         print("mlx-lm not available. Install: pip install mlx-lm", file=sys.stderr)
         return prompt
@@ -102,12 +103,14 @@ def _enhance_with_mlx_lm(
     import mlx.core as mx
     mx.random.seed(seed)
 
+    # mlx-lm 0.25+ uses sampler instead of temp kwarg (generate_step rejects temp)
+    sampler = make_sampler(temperature, 1.0, 0.0, 1, top_k=0)
     response = generate(
         model,
         tokenizer,
         prompt=formatted,
         max_tokens=max_tokens,
-        temp=temperature,
+        sampler=sampler,
         verbose=verbose,
     )
 
