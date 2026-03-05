@@ -158,6 +158,8 @@ import os
 import sys
 import json
 import subprocess
+import time
+import select
 
 # Set up file logging
 log_file = open("\(logFile)", "w")
@@ -179,41 +181,28 @@ try:
     # Image-to-video mode
     source_image_path = "\(escapedImagePath)" if "\(escapedImagePath)" else None
     mode = "image-to-video" if source_image_path else "text-to-video"
-    log(f"Mode: {mode} (with audio)")
     
     prompt = '''\(escapedPrompt)'''
     log(f"Prompt: {prompt[:100]}...")
     log(f"Size: \(genWidth)x\(genHeight), \(params.numFrames) frames")
     log(f"Seed: \(seed)")
     
-    # Build CLI args for mlx_video.generate_av module
-    # Note: mlx_video.generate_av uses --enhance-prompt/--temperature
-    # instead of --repetition-penalty/--top-p
-    cmd = [
-        sys.executable, "-m", "mlx_video.generate_av",
-        "--prompt", prompt,
-        "--height", str(\(genHeight)),
-        "--width", str(\(genWidth)),
-        "--num-frames", str(\(params.numFrames)),
-        "--seed", str(\(seed)),
-        "--fps", str(\(params.fps)),
-        "--output-path", "\(outputPath)",
-        "--model-repo", model_repo,
-        "--tiling", "\(params.vaeTilingMode)",
-    ]
+    disable_audio = \(request.disableAudio ? "True" : "False")
+    resources_path = "\(resourcesPath)"
+    wrapper_script = os.path.join(resources_path, "av_generator.py")
+    use_wrapper = disable_audio
+    if use_wrapper and not os.path.exists(wrapper_script):
+        raise FileNotFoundError(f"Missing bundled script: {wrapper_script}")
     
-    # Add --enhance-prompt only when enabled in Settings
+    # Add prompt enhancement only when enabled in Settings
     enable_enhancement = \(enableGemmaPromptEnhancement ? "True" : "False")
-    if enable_enhancement:
-        cmd.append("--enhance-prompt")
-        cmd.append("--use-uncensored-enhancer")
-        cmd.extend(["--temperature", str(\(request.gemmaTopP))])
+    if enable_enhancement and not use_wrapper:
         # Pre-flight: copy bundled prompts into mlx_video if missing (pip package omits them)
         try:
             from pathlib import Path
             import shutil
-            resources_path = Path("\(resourcesPath)")
-            bundled_prompts = resources_path / "prompts"
+            resources_dir = Path(resources_path)
+            bundled_prompts = resources_dir / "prompts"
             import mlx_video.models.ltx.text_encoder as te
             target_dir = Path(te.__file__).parent / "prompts"
             for name in ["gemma_t2v_system_prompt.txt", "gemma_i2v_system_prompt.txt"]:
@@ -226,18 +215,52 @@ try:
         except Exception as inj_err:
             log(f"Warning: could not inject prompts: {inj_err}")
     
+    # Build command; use bundled wrapper when no-audio is requested
+    if use_wrapper:
+        cmd = [
+            sys.executable, wrapper_script,
+            "--prompt", prompt,
+            "--height", str(\(genHeight)),
+            "--width", str(\(genWidth)),
+            "--num-frames", str(\(params.numFrames)),
+            "--seed", str(\(seed)),
+            "--fps", str(\(params.fps)),
+            "--output-path", "\(outputPath)",
+            "--model-repo", model_repo,
+            "--tiling", "\(params.vaeTilingMode)",
+            "--no-audio",
+        ]
+        if enable_enhancement:
+            cmd.extend(["--repetition-penalty", str(\(request.gemmaRepetitionPenalty))])
+            cmd.extend(["--top-p", str(\(request.gemmaTopP))])
+        log(f"Mode: {mode} (audio disabled)")
+    else:
+        # Note: mlx_video.generate_av CLI uses --enhance-prompt/--temperature
+        cmd = [
+            sys.executable, "-m", "mlx_video.generate_av",
+            "--prompt", prompt,
+            "--height", str(\(genHeight)),
+            "--width", str(\(genWidth)),
+            "--num-frames", str(\(params.numFrames)),
+            "--seed", str(\(seed)),
+            "--fps", str(\(params.fps)),
+            "--output-path", "\(outputPath)",
+            "--model-repo", model_repo,
+            "--tiling", "\(params.vaeTilingMode)",
+        ]
+        if enable_enhancement:
+            cmd.append("--enhance-prompt")
+            cmd.append("--use-uncensored-enhancer")
+            cmd.extend(["--temperature", str(\(request.gemmaTopP))])
+        log(f"Mode: {mode} (with audio)")
+    
     # Add image conditioning if provided
     if source_image_path:
         cmd.extend(["--image", source_image_path])
         cmd.extend(["--image-strength", str(\(params.imageStrength))])
         log(f"Image conditioning: {source_image_path}")
     
-    # Disable audio if requested
-    disable_audio = \(request.disableAudio ? "True" : "False")
-    if disable_audio:
-        cmd.append("--no-audio")
-        log("Audio generation disabled")
-    elif \(saveAudioTrackSeparately ? "True" : "False"):
+    if (not disable_audio) and \(saveAudioTrackSeparately ? "True" : "False"):
         cmd.append("--save-audio-separately")
         log("Saving audio track separately")
     
@@ -253,12 +276,28 @@ try:
         bufsize=1
     )
     
-    # Stream combined stdout/stderr for progress updates
-    for line in process.stdout:
-        line = line.strip()
-        if line:
+    # Stream combined stdout/stderr for progress updates with download stall detection
+    download_in_progress = False
+    last_download_activity = time.time()
+    download_stall_timeout = 180
+    while True:
+        if process.stdout is None:
+            break
+        ready, _, _ = select.select([process.stdout], [], [], 1.0)
+        if ready:
+            raw_line = process.stdout.readline()
+            if raw_line == "" and process.poll() is not None:
+                break
+            line = raw_line.strip()
+            if not line:
+                continue
             log(line)
             low = line.lower()
+            if ("fetching" in low) or ("downloading" in low) or line.startswith("DOWNLOAD:"):
+                download_in_progress = True
+                last_download_activity = time.time()
+            if line.startswith("STAGE:") or "generation..." in low or "decoding" in low:
+                download_in_progress = False
             # Emit explicit phase statuses so UI doesn't look frozen after denoising
             if "decoding video" in low:
                 print("STATUS:Decoding video...", file=sys.stderr, flush=True)
@@ -271,6 +310,16 @@ try:
             elif "saved video with audio" in low:
                 print("STATUS:Saving final video...", file=sys.stderr, flush=True)
             print(line, file=sys.stderr)
+        else:
+            if process.poll() is not None:
+                break
+            if download_in_progress:
+                stalled_for = int(time.time() - last_download_activity)
+                if stalled_for >= download_stall_timeout:
+                    print(f"DOWNLOAD:STALL:{stalled_for}", file=sys.stderr, flush=True)
+                    log(f"ERROR: model download stalled for {stalled_for}s")
+                    process.kill()
+                    raise TimeoutError(f"Model download stalled for {stalled_for}s")
     
     # Wait for completion
     process.wait()
@@ -295,8 +344,12 @@ except Exception as e:
         // Thread-safe capture of enhanced prompt from stderr
         let enhancedPromptLock = NSLock()
         var capturedEnhancedPrompt: String? = nil
+        let failureHintLock = NSLock()
+        var capturedFailureHint: String? = nil
         
-        let output = try await runPython(script: script, timeout: 3600) { stderr in
+        let output: String
+        do {
+            output = try await runPython(script: script, timeout: 3600) { stderr in
             // Capture enhanced prompt from stderr
             // Our generate.py emits "ENHANCED_PROMPT:..." and mlx_video may emit "Enhanced prompt: ..."
             for line in stderr.components(separatedBy: "\n") {
@@ -319,6 +372,19 @@ except Exception as e:
                 for raw in stderr.components(separatedBy: "\n") {
                     let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if line.isEmpty { continue }
+                    let lower = line.lowercased()
+                    
+                    if line.hasPrefix("DOWNLOAD:STALL:") {
+                        let seconds = String(line.dropFirst("DOWNLOAD:STALL:".count))
+                        progressHandler(0.01, "Download stalled for \(seconds)s. Stopping generation.")
+                        failureHintLock.lock()
+                        capturedFailureHint = "Model download stalled for \(seconds)s without progress. Please check your network, run `hf login` in Terminal, and retry generation."
+                        failureHintLock.unlock()
+                    } else if lower.contains("valueerror: [conv] expect the input channels") {
+                        failureHintLock.lock()
+                        capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. This is an upstream `mlx-video-with-audio` model/package issue; please update the package and retry."
+                        failureHintLock.unlock()
+                    }
                     
                     if line.hasPrefix("STAGE:") {
                         // Parse stage-aware progress: STAGE:1:STEP:3:8:Denoising
@@ -400,6 +466,15 @@ except Exception as e:
                     }
                 }
             }
+            }
+        } catch {
+            failureHintLock.lock()
+            let hint = capturedFailureHint
+            failureHintLock.unlock()
+            if let hint, !hint.isEmpty {
+                throw LTXError.generationFailed(hint)
+            }
+            throw error
         }
         
         // Parse JSON output - extract JSON from output (may have other text before it)

@@ -352,7 +352,8 @@ class PythonEnvironment {
         
         // Minimal clean environment
         var env: [String: String] = [:]
-        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+        let pythonBin = URL(fileURLWithPath: executable).deletingLastPathComponent().path
+        env["PATH"] = "\(pythonBin):/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
         env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
         env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
         process.environment = env
@@ -634,7 +635,8 @@ class PythonEnvironment {
         }
         
         var env = ProcessInfo.processInfo.environment
-        env["PATH"] = "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
+        let pythonBin = URL(fileURLWithPath: pythonExecutable).deletingLastPathComponent().path
+        env["PATH"] = "\(pythonBin):/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
         process.environment = env
         
         let stdoutPipe = Pipe()
