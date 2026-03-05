@@ -244,23 +244,36 @@ try:
     log("Starting generation...")
     log(f"Command: {' '.join(cmd)}")
     
-    # Run the CLI module and stream output
+    # Run the CLI module and stream combined output
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
     )
     
-    # Stream stderr for progress updates
-    for line in process.stderr:
+    # Stream combined stdout/stderr for progress updates
+    for line in process.stdout:
         line = line.strip()
         if line:
             log(line)
+            low = line.lower()
+            # Emit explicit phase statuses so UI doesn't look frozen after denoising
+            if "decoding video" in low:
+                print("STATUS:Decoding video...", file=sys.stderr, flush=True)
+            elif "video encoded" in low:
+                print("STATUS:Saving video frames...", file=sys.stderr, flush=True)
+            elif "decoding audio" in low:
+                print("STATUS:Decoding audio...", file=sys.stderr, flush=True)
+            elif "combining video and audio" in low:
+                print("STATUS:Saving final video...", file=sys.stderr, flush=True)
+            elif "saved video with audio" in low:
+                print("STATUS:Saving final video...", file=sys.stderr, flush=True)
             print(line, file=sys.stderr)
     
     # Wait for completion
-    stdout, _ = process.communicate()
+    process.wait()
     
     if process.returncode != 0:
         raise RuntimeError(f"mlx_video.generate_av failed with code {process.returncode}")
