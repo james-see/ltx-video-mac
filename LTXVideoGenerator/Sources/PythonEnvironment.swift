@@ -23,8 +23,8 @@ struct PythonDetails {
     }
 }
 
-/// Minimum mlx-video-with-audio version (restore bf16 text encoder default for quality)
-private let mlxVideoMinVersion = "0.1.10"
+/// Minimum mlx-video-with-audio version (fix import validation regression)
+private let mlxVideoMinVersion = "0.1.11"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
