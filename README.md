@@ -157,6 +157,8 @@ And a second run produced this one:
 
 [![Lakeside memory example output thumbnail](docs/images/example-memory-thumbnail.png)](https://twitter.com/jc50000000/status/2029412416472203277)
 
+[Open video link](https://github.com/user-attachments/assets/59e9f752-4d0c-43fd-96bf-711134e65944)
+
 [Open X/Twitter post](https://twitter.com/jc50000000/status/2029412416472203277)
 
 **Prompt used:**
