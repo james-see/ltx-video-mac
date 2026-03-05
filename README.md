@@ -153,6 +153,42 @@ https://github.com/user-attachments/assets/82031683-1763-4dff-97f9-c2b6d38f7ee8
 > 
 > Overall style: glossy tech product ad, filmed in 4K, smooth dolly and slider shots, soft studio lighting, subtle retro‑futuristic aesthetic (think brushed aluminum, glowing rings, clean UI). The time machine looks like a compact desktop appliance about the size of a toaster: brushed metal body, circular time dial with glowing blue light, small display, and a single illuminated control knob.
 
+### Example (Embedded X/Twitter Post)
+
+And a second run produced this one:
+
+<blockquote class="twitter-tweet" data-media-max-width="560"><p lang="en" dir="ltr">And a second run produced this one. Not bad. <a href="https://t.co/8TunejYCSb">pic.twitter.com/8TunejYCSb</a></p>&mdash; jc (@jc50000000) <a href="https://twitter.com/jc50000000/status/2029412416472203277?ref_src=twsrc%5Etfw">March 5, 2026</a></blockquote>
+<script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+
+**Prompt used:**
+> Scene tone: quiet, reflective, fragmented memory. Cinematic realism, muted natural colors. Overcast but DRY weather. No rain, no raindrops, no wet falling precipitation.
+>
+> START FRAME (0-2.5s)  
+> Extreme close-up (85mm) of the elderly man's face. He breathes slowly. A tiny tremor in the lower eyelid. Strands of white hair drift gently in a light breeze.  
+> Dialogue (man, barely above a whisper):  
+> "I remember."
+>
+> Motion: micro push-in only.
+>
+> JUMP CUT 1 (2.5-5s)  
+> Hard cut to an extreme close-up of his hands: weathered fingers rubbing a small object (a coin / pebble / ring) in his palm.  
+> Dialogue (man):  
+> "Not the day..."
+>
+> Motion: hands move slowly, deliberately.
+>
+> JUMP CUT 2 (5-7.5s)  
+> Hard cut to close-up (50-85mm) of his boots stepping into soft mud at the lake edge. The movement is careful, almost hesitant. No splashing, just a quiet press into wet ground.  
+> Dialogue (man):  
+> "The feeling."
+>
+> Motion: one slow step, then stillness.
+>
+> JUMP CUT 3 (7.5-10s)  
+> Hard cut to close-up of the lake surface: perfectly still water with faint ripples spreading outward (from a dropped pebble or a gentle touch).  
+> Dialogue (man):  
+> "It stayed."
+
 ## Building from Source
 
 ```bash
