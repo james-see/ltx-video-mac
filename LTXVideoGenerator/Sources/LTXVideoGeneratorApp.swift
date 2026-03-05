@@ -25,6 +25,7 @@ struct LTXVideoGeneratorApp: App {
 }
 
 struct RootView: View {
+    @Environment(\.openSettings) private var openSettingsAction
     @StateObject private var historyManager: HistoryManager
     @StateObject private var presetManager: PresetManager
     @StateObject private var generationService: GenerationService
@@ -94,15 +95,9 @@ struct RootView: View {
     }
     
     private func openSettings() {
-        // Delay slightly to let alert dismiss first
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            if #available(macOS 14.0, *) {
-                // macOS 14+ uses Settings
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            } else {
-                // macOS 13 and earlier uses Preferences
-                NSApp.sendAction(Selector(("showPreferencesWindow:")), to: nil, from: nil)
-            }
+        // Open settings on the next run loop so the alert dismisses first.
+        DispatchQueue.main.async {
+            openSettingsAction()
         }
     }
 }

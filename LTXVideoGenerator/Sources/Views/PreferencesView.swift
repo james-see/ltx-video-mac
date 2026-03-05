@@ -109,19 +109,19 @@ struct PreferencesView: View {
                                     VStack(alignment: .leading, spacing: 8) {
                                         if isVenv {
                                             // Can install directly to venv
-                                            Text("Install missing packages:")
+                                            Text("Install/upgrade required packages:")
                                                 .font(.caption.bold())
                                             
                                             HStack {
-                                                Text("pip install \(details.missingPackages.joined(separator: " "))")
+                                                Text("pip install -U \(details.missingPackages.joined(separator: " "))")
                                                     .font(.caption.monospaced())
                                                     .textSelection(.enabled)
                                                     .padding(6)
                                                     .background(Color.secondary.opacity(0.1))
                                                     .cornerRadius(4)
                                                 
-                                                Button("Install") {
-                                                    installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages)
+                                                Button("Install/Upgrade") {
+                                                    installMissingPackages(pythonPath: details.executablePath, packages: details.missingPackages, upgrade: true)
                                                 }
                                                 .buttonStyle(.borderedProminent)
                                                 .disabled(isInstalling)
@@ -149,6 +149,30 @@ struct PreferencesView: View {
                                             Text("This will create ~/ltx-venv and install packages there")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .padding(.top, 4)
+                                }
+
+                                // Offer explicit upgrade action for outdated packages
+                                if !details.packagesNeedingUpgrade.isEmpty {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        Text("Upgrade required packages:")
+                                            .font(.caption.bold())
+
+                                        HStack {
+                                            Text("pip install -U \(details.packagesNeedingUpgrade.joined(separator: " "))")
+                                                .font(.caption.monospaced())
+                                                .textSelection(.enabled)
+                                                .padding(6)
+                                                .background(Color.secondary.opacity(0.1))
+                                                .cornerRadius(4)
+
+                                            Button("Upgrade") {
+                                                installMissingPackages(pythonPath: details.executablePath, packages: details.packagesNeedingUpgrade, upgrade: true)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .disabled(isInstalling)
                                         }
                                     }
                                     .padding(.top, 4)
@@ -469,21 +493,25 @@ struct PreferencesView: View {
         }
     }
     
-    private func installMissingPackages(pythonPath: String, packages: [String]) {
+    private func installMissingPackages(pythonPath: String, packages: [String], upgrade: Bool = false) {
         isInstalling = true
         installMessage = nil
         
         Task {
-            let result = await PythonEnvironment.shared.installPackages(pythonExecutable: pythonPath, packages: packages)
+            let result = await PythonEnvironment.shared.installPackages(
+                pythonExecutable: pythonPath,
+                packages: packages,
+                upgrade: upgrade
+            )
             
             await MainActor.run {
                 isInstalling = false
                 
                 if result.success {
-                    installMessage = "Installation successful! Re-validating..."
+                    installMessage = upgrade ? "Upgrade successful! Re-validating..." : "Installation successful! Re-validating..."
                     validatePython()
                 } else {
-                    installMessage = "Install failed: \(result.message)"
+                    installMessage = upgrade ? "Upgrade failed: \(result.message)" : "Install failed: \(result.message)"
                 }
             }
         }

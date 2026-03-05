@@ -82,6 +82,9 @@ Progress is shown in the app during download.
 
 When enabled in **Settings > Generation**, Gemma rewrites your prompt before generation—expanding short descriptions into detailed, LTX-2–optimized prompts with visuals, audio, camera movement, and style. Use the **Preview enhanced prompt** button to see the rewritten prompt before generating.
 
+> **Note:** This enhancer is optional.  
+> The core text encoder used for generation embeddings is still required even when prompt enhancement is off.
+
 1. Go to **Settings > Generation**
 2. Turn on **Enable Gemma Prompt Enhancement**
 3. Optionally turn on **Use uncensored enhancer** to avoid content filters (first run downloads ~7GB)

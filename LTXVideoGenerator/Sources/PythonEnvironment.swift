@@ -175,8 +175,8 @@ class PythonEnvironment {
     // MARK: - Subprocess Validation (Safe - Won't Crash)
     
     /// Validate Python installation using subprocess - safe and won't crash the app
-    /// If packages need upgrade (e.g. mlx-video-with-audio), auto-upgrades once and re-validates
-    func validateWithSubprocess(path: String, alreadyTriedUpgrade: Bool = false) async -> (success: Bool, message: String, details: PythonDetails?) {
+    /// Auto-installs missing packages in virtualenvs and auto-upgrades outdated packages once, then re-validates.
+    func validateWithSubprocess(path: String, alreadyTriedUpgrade: Bool = false, alreadyTriedInstall: Bool = false) async -> (success: Bool, message: String, details: PythonDetails?) {
         // Step 1: Check file exists
         guard FileManager.default.fileExists(atPath: path) else {
             return (false, "File not found: \(path)", nil)
@@ -293,6 +293,19 @@ class PythonEnvironment {
         )
         
         if !missingPackages.isEmpty {
+            // Auto-install missing packages for virtualenvs (safe path for managed dependencies)
+            if !alreadyTriedInstall && isVirtualEnvironment(executablePath) {
+                // Use -U here so "missing" also self-heals stale/broken installs.
+                let (installSuccess, installMessage) = await installPackages(
+                    pythonExecutable: executablePath,
+                    packages: missingPackages,
+                    upgrade: true
+                )
+                if installSuccess {
+                    return await validateWithSubprocess(path: path, alreadyTriedUpgrade: alreadyTriedUpgrade, alreadyTriedInstall: true)
+                }
+                return (false, "Auto-install failed: \(installMessage)", details)
+            }
             let pipCommand = "pip install \(missingPackages.joined(separator: " "))"
             return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details)
         }
@@ -305,7 +318,7 @@ class PythonEnvironment {
         if !packagesNeedingUpgrade.isEmpty && !alreadyTriedUpgrade {
             let (upgradeSuccess, upgradeMessage) = await installPackages(pythonExecutable: executablePath, packages: packagesNeedingUpgrade, upgrade: true)
             if upgradeSuccess {
-                return await validateWithSubprocess(path: path, alreadyTriedUpgrade: true)
+                return await validateWithSubprocess(path: path, alreadyTriedUpgrade: true, alreadyTriedInstall: alreadyTriedInstall)
             }
             return (false, "Upgrade failed: \(upgradeMessage)", details)
         }
