@@ -267,61 +267,91 @@ try:
     log("Starting generation...")
     log(f"Command: {' '.join(cmd)}")
     
-    # Run the CLI module and stream combined output
+    # Run the CLI module and stream combined output (binary read so we see tqdm \r updates)
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1
+        stderr=subprocess.STDOUT
     )
     
-    # Stream combined stdout/stderr for progress updates with download stall detection
+    # Chunk-based read: tqdm/huggingface_hub often update in place with \\r, so readline() can block.
+    # Any received data during download phase counts as activity to avoid false stall timeouts.
+    line_buf = ""
     download_in_progress = False
-    last_download_activity = time.time()
-    download_stall_timeout = 180
+    last_download_activity = None  # None = not in download phase yet; set when first download line seen
+    download_stall_timeout = 300  # 5 min without any data once download has started
+    chunk_size = 8192
     while True:
         if process.stdout is None:
             break
         ready, _, _ = select.select([process.stdout], [], [], 1.0)
         if ready:
-            raw_line = process.stdout.readline()
-            if raw_line == "" and process.poll() is not None:
-                break
-            line = raw_line.strip()
-            if not line:
+            try:
+                raw = process.stdout.read(chunk_size)
+            except (ValueError, OSError):
+                raw = b""
+            if not raw:
+                if process.poll() is not None:
+                    break
                 continue
-            log(line)
-            low = line.lower()
-            if ("fetching" in low) or ("downloading" in low) or line.startswith("DOWNLOAD:"):
-                download_in_progress = True
+            # Decode and treat any received data as activity when we're in download phase
+            try:
+                chunk = raw.decode("utf-8", errors="replace")
+            except Exception:
+                chunk = ""
+            if download_in_progress and last_download_activity is not None:
                 last_download_activity = time.time()
-            if line.startswith("STAGE:") or "generation..." in low or "decoding" in low:
-                download_in_progress = False
-            # Emit explicit phase statuses so UI doesn't look frozen after denoising
-            if "decoding video" in low:
-                print("STATUS:Decoding video...", file=sys.stderr, flush=True)
-            elif "video encoded" in low:
-                print("STATUS:Saving video frames...", file=sys.stderr, flush=True)
-            elif "decoding audio" in low:
-                print("STATUS:Decoding audio...", file=sys.stderr, flush=True)
-            elif "combining video and audio" in low:
-                print("STATUS:Saving final video...", file=sys.stderr, flush=True)
-            elif "saved video with audio" in low:
-                print("STATUS:Saving final video...", file=sys.stderr, flush=True)
-            print(line, file=sys.stderr)
+            line_buf += chunk
+            # Partial tqdm line (e.g. "  3%|") also counts as download activity
+            if "%" in line_buf and "|" in line_buf:
+                download_in_progress = True
+                if last_download_activity is None:
+                    last_download_activity = time.time()
+            _nl = "\\n"
+            _cr = "\\r"
+            while _nl in line_buf or _cr in line_buf:
+                line, sep, rest = line_buf.partition(_nl)
+                if not sep:
+                    line, sep, rest = line_buf.partition(_cr)
+                line_buf = rest if sep else line_buf
+                if not sep:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                log(line)
+                low = line.lower()
+                if ("fetching" in low) or ("downloading" in low) or line.startswith("DOWNLOAD:") or ("%" in line and "|" in line):
+                    download_in_progress = True
+                    if last_download_activity is None:
+                        last_download_activity = time.time()
+                if line.startswith("STAGE:") or "generation..." in low or "decoding" in low:
+                    download_in_progress = False
+                    last_download_activity = None
+                # Emit explicit phase statuses so UI doesn't look frozen after denoising
+                if "decoding video" in low:
+                    print("STATUS:Decoding video...", file=sys.stderr, flush=True)
+                elif "video encoded" in low:
+                    print("STATUS:Saving video frames...", file=sys.stderr, flush=True)
+                elif "decoding audio" in low:
+                    print("STATUS:Decoding audio...", file=sys.stderr, flush=True)
+                elif "combining video and audio" in low:
+                    print("STATUS:Saving final video...", file=sys.stderr, flush=True)
+                elif "saved video with audio" in low:
+                    print("STATUS:Saving final video...", file=sys.stderr, flush=True)
+                print(line, file=sys.stderr)
         else:
             if process.poll() is not None:
                 break
-            if download_in_progress:
+            # Only enforce stall when we've seen download start and then no data for timeout
+            if download_in_progress and last_download_activity is not None:
                 stalled_for = int(time.time() - last_download_activity)
                 if stalled_for >= download_stall_timeout:
                     print(f"DOWNLOAD:STALL:{stalled_for}", file=sys.stderr, flush=True)
-                    log(f"ERROR: model download stalled for {stalled_for}s")
+                    log(f"ERROR: model download stalled for {stalled_for}s (no data received)")
                     process.kill()
                     raise TimeoutError(f"Model download stalled for {stalled_for}s")
     
-    # Wait for completion
     process.wait()
     
     if process.returncode != 0:
@@ -378,7 +408,7 @@ except Exception as e:
                         let seconds = String(line.dropFirst("DOWNLOAD:STALL:".count))
                         progressHandler(0.01, "Download stalled for \(seconds)s. Stopping generation.")
                         failureHintLock.lock()
-                        capturedFailureHint = "Model download stalled for \(seconds)s without progress. Please check your network, run `hf login` in Terminal, and retry generation."
+                        capturedFailureHint = "No download data received for \(seconds)s—connection may have stalled. Check your network; run `hf login` in Terminal if using gated models; then retry. To download the model manually, use: hf download notapalindrome/ltx2-mlx-av (saves to ~/.cache/huggingface)."
                         failureHintLock.unlock()
                     } else if lower.contains("valueerror: [conv] expect the input channels") {
                         failureHintLock.lock()

@@ -5,6 +5,15 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.21] - 2026-03-13
+
+### Fixed
+- **Issue #22 – First-download progress / stall timeout** – Chunk-based read of subprocess output so tqdm/huggingface_hub progress is detected even when output is sparse or `\r`-updated; stall timer only runs after download has started and no data received (5 min timeout). Prevents false 180s timeout while model is still downloading.
+- **Missing bundled script** – `av_generator.py` is now included in app resources so "Disable audio" generation no longer fails with "Missing bundled script" when running from DMG or release build.
+
+### Changed
+- Clearer stall error message with next steps: check network, `hf login` for gated models, optional manual `hf download notapalindrome/ltx2-mlx-av`.
+
 ## [2.3.20] - 2026-03-05
 
 ### Changed
