@@ -127,6 +127,7 @@ class LTXBridge {
         
         let selectedModel = LTXModelCatalog.resolvedModel(id: request.modelId)
         let modelRepo = selectedModel.repo
+        let oomRecoveryHint = "Metal ran out of memory during generation. Retry with safer settings: 512x320 resolution, 25/33/49 frames, 24 FPS, and tiling set to aggressive. Close memory-heavy apps, then retry."
         let isImageToVideo = request.isImageToVideo
         let modeDescription = isImageToVideo ? "image-to-video" : "text-to-video"
         progressHandler(0.1, "Starting \(modeDescription) (\(selectedModel.displayName))...")
@@ -427,6 +428,15 @@ except Exception as e:
                         failureHintLock.lock()
                         capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. This is an upstream `mlx-video-with-audio` model/package issue; please update the package and retry."
                         failureHintLock.unlock()
+                    } else if lower.contains("kiogpucommandbuffercallbackerroroutofmemory")
+                                || lower.contains("insufficient memory")
+                                || lower.contains("std::bad_alloc")
+                                || (lower.contains("command buffer execution failed") && lower.contains("memory"))
+                                || (lower.contains("metal") && lower.contains("out of memory")) {
+                        failureHintLock.lock()
+                        capturedFailureHint = oomRecoveryHint
+                        failureHintLock.unlock()
+                        progressHandler(0.01, "Generation stopped: GPU memory limit reached")
                     }
                     
                     if line.hasPrefix("STAGE:") {

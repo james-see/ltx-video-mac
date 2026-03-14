@@ -43,9 +43,26 @@ struct PromptInputView: View {
     @State private var isPreviewing = false
     @State private var previewError: String?
     @State private var previewStatusMessage = ""
+    @State private var showMemoryRiskAlert = false
+    @State private var pendingQueueAction: PendingQueueAction?
 
     private var selectedModel: LTXModel {
         LTXModelCatalog.resolvedModel(id: selectedModelID)
+    }
+
+    private var estimatedMemoryGB: Int {
+        parameters.estimatedVRAM
+    }
+
+    private var isHighMemoryRisk: Bool {
+        estimatedMemoryGB >= 36 || (parameters.width * parameters.height >= 768 * 512 && parameters.numFrames >= 97)
+    }
+
+    private var memoryRiskGuidance: String {
+        let tilingHint = parameters.vaeTilingMode == "aggressive"
+            ? ""
+            : " Switch tiling to aggressive for lower peak memory."
+        return "This request is likely to hit Metal memory limits (estimated ~\(estimatedMemoryGB)GB). Recommended retry settings: 512x320 resolution, 25/33/49 frames, 24 FPS.\(tilingHint)"
     }
     
     var body: some View {
@@ -456,7 +473,7 @@ struct PromptInputView: View {
                 } else {
                     // Normal state - generate button
                     Button {
-                        generateVideo()
+                        requestSingleGeneration()
                     } label: {
                         Label("Generate", systemImage: "play.fill")
                             .frame(maxWidth: .infinity)
@@ -483,7 +500,7 @@ struct PromptInputView: View {
                 
                 // Add to queue button
                 Button {
-                    addToQueue()
+                    requestSingleGeneration()
                 } label: {
                     Label("Add to Queue", systemImage: "plus.circle")
                 }
@@ -494,15 +511,15 @@ struct PromptInputView: View {
                 // Batch button
                 Menu {
                     Button("Generate 3 variations") {
-                        generateBatch(count: 3)
+                        requestBatchGeneration(count: 3)
                     }
                     Button("Generate 5 variations") {
-                        generateBatch(count: 5)
+                        requestBatchGeneration(count: 5)
                     }
                     Divider()
                     Button("Generate with random seeds...") {
                         // Could show a dialog for count
-                        generateBatch(count: 3)
+                        requestBatchGeneration(count: 3)
                     }
                 } label: {
                     Image(systemName: "square.stack.3d.up")
@@ -552,6 +569,16 @@ struct PromptInputView: View {
                 disableAudio = false
             }
         }
+        .alert("High Memory Risk", isPresented: $showMemoryRiskAlert) {
+            Button("Continue Anyway") {
+                executePendingQueueAction()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingQueueAction = nil
+            }
+        } message: {
+            Text(memoryRiskGuidance)
+        }
     }
 
     private func runPreview() async {
@@ -599,24 +626,14 @@ struct PromptInputView: View {
         )
         generationService.addToQueue(request)
     }
-    
-    private func addToQueue() {
-        let request = GenerationRequest(
-            prompt: prompt,
-            negativePrompt: negativePrompt,
-            voiceoverText: voiceoverText,
-            voiceoverSource: voiceoverSource.rawValue,
-            voiceoverVoice: voiceoverSource == .elevenLabs ? selectedElevenLabsVoice : selectedMLXVoice,
-            sourceImagePath: sourceImagePath,
-            musicEnabled: musicEnabled,
-            musicGenre: musicEnabled ? selectedMusicGenre.rawValue : nil,
-            disableAudio: disableAudio,
-            gemmaRepetitionPenalty: gemmaRepetitionPenalty,
-            gemmaTopP: gemmaTopP,
-            modelId: selectedModelID,
-            parameters: parameters
-        )
-        generationService.addToQueue(request)
+
+    private func requestSingleGeneration() {
+        if isHighMemoryRisk {
+            pendingQueueAction = .single
+            showMemoryRiskAlert = true
+            return
+        }
+        generateVideo()
     }
     
     private func generateBatch(count: Int) {
@@ -648,6 +665,26 @@ struct PromptInputView: View {
             )
         }
         generationService.addBatch(requests)
+    }
+
+    private func requestBatchGeneration(count: Int) {
+        if isHighMemoryRisk {
+            pendingQueueAction = .batch(count)
+            showMemoryRiskAlert = true
+            return
+        }
+        generateBatch(count: count)
+    }
+
+    private func executePendingQueueAction() {
+        guard let action = pendingQueueAction else { return }
+        pendingQueueAction = nil
+        switch action {
+        case .single:
+            generateVideo()
+        case .batch(let count):
+            generateBatch(count: count)
+        }
     }
     
     // MARK: - Image Selection
@@ -699,6 +736,11 @@ struct PromptInputView: View {
         sourceImagePath = nil
         sourceImageThumbnail = nil
     }
+}
+
+private enum PendingQueueAction {
+    case single
+    case batch(Int)
 }
 
 private struct EnhancedPreviewSheet: View {

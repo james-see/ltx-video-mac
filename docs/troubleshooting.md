@@ -134,14 +134,16 @@ cat /tmp/ltx_generation.log
 ```
 
 **Common causes:**
-- Out of memory - reduce resolution or frames
+- Out of memory - reduce resolution/frames and use aggressive tiling
 - Model not fully downloaded
 - Corrupted model cache
 
 **Solution:**
 1. Try a smaller resolution (512x320)
-2. Reduce frame count
-3. If model seems corrupted, delete and re-download:
+2. Reduce frame count (start with 25, 33, or 49)
+3. Use 24 FPS for safer memory profile
+4. Set VAE tiling to `aggressive`
+5. If model seems corrupted, delete and re-download:
    ```bash
    rm -rf ~/.cache/huggingface/hub/models--notapalindrome--ltx2-mlx-av
    rm -rf ~/.cache/huggingface/hub/models--dgrauet--ltx-2.3-mlx-distilled-q4
@@ -182,13 +184,17 @@ cat /tmp/ltx_generation.log
    - Use 512×320 instead of higher resolutions
    
 2. **Reduce frame count:**
-   - Start with 49 frames instead of 97+
+   - Start with 25, 33, or 49 frames instead of 97+
+
+3. **Use safer generation settings:**
+   - Set FPS to 24
+   - Set VAE tiling to `aggressive`
    
-3. **Close other apps:**
+4. **Close other apps:**
    - Safari, Chrome use significant memory
    - Other AI/ML applications
    
-4. **Check memory usage:**
+5. **Check memory usage:**
    - Open Activity Monitor
    - Look at Memory Pressure graph
    - Should have minimal swap usage

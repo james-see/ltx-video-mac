@@ -231,7 +231,9 @@ The download progress updates every 1%. Download time depends on selected model 
 
 ### "Out of memory"
 - Reduce resolution (512x320 is fastest)
-- Reduce frame count
+- Reduce frame count (25/33/49 recommended)
+- Use 24 FPS
+- Set VAE tiling to aggressive
 - Close other applications
 - 32GB RAM minimum, 64GB recommended
 
