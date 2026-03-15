@@ -279,20 +279,21 @@ try:
         stderr=subprocess.STDOUT
     )
     
-    # Chunk-based read: tqdm/huggingface_hub often update in place with \\r, so readline() can block.
-    # Any received data during download phase counts as activity to avoid false stall timeouts.
+    # Unbuffered read: use os.read() on the raw fd so every line the inner process
+    # flushes is available immediately.  process.stdout.read(n) uses Python's
+    # BufferedReader which blocks until n bytes accumulate, starving the progress loop.
     line_buf = ""
     download_in_progress = False
     last_download_activity = None  # None = not in download phase yet; set when first download line seen
     download_stall_timeout = 300  # 5 min without any data once download has started
-    chunk_size = 8192
+    stdout_fd = process.stdout.fileno()
     while True:
         if process.stdout is None:
             break
         ready, _, _ = select.select([process.stdout], [], [], 1.0)
         if ready:
             try:
-                raw = process.stdout.read(chunk_size)
+                raw = os.read(stdout_fd, 8192)
             except (ValueError, OSError):
                 raw = b""
             if not raw:
@@ -344,7 +345,7 @@ try:
                     print("STATUS:Saving final video...", file=sys.stderr, flush=True)
                 elif "saved video with audio" in low:
                     print("STATUS:Saving final video...", file=sys.stderr, flush=True)
-                print(line, file=sys.stderr)
+                print(line, file=sys.stderr, flush=True)
         else:
             if process.poll() is not None:
                 break

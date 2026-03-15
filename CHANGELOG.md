@@ -5,6 +5,11 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.31] - 2026-03-15
+
+### Fixed
+- **Live GUI progress finally restored** - Root cause: Python's `BufferedReader.read(8192)` blocked until 8192 bytes accumulated, starving the progress loop for the entire generation. Replaced with unbuffered `os.read()` so every `STAGE:` / `STATUS:` line reaches the UI immediately. Also added `flush=True` on the catch-all stderr relay.
+
 ## [2.3.30] - 2026-03-15
 
 ### Fixed
