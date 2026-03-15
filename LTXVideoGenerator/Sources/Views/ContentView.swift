@@ -156,7 +156,7 @@ struct ModelStatusView: View {
                 Circle()
                     .fill(generationService.isModelLoaded ? Color.green : Color.gray)
                     .frame(width: 8, height: 8)
-                Text(generationService.isModelLoaded ? "Model Ready" : "Model Not Loaded")
+                Text(generationService.isModelLoaded ? "Environment Ready" : "Environment Not Ready")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -173,6 +173,13 @@ struct ModelStatusView: View {
                     .buttonStyle(.borderless)
                     .controlSize(.small)
                 }
+            }
+
+            if generationService.isModelLoaded {
+                Text("Model files are downloaded on first generation if cache is missing.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             
             Divider()

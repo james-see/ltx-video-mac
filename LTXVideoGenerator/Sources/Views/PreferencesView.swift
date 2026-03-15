@@ -25,6 +25,12 @@ struct PreferencesView: View {
     private var selectedModel: LTXModel {
         LTXModelCatalog.resolvedModel(id: selectedModelID)
     }
+
+    private var appVersionText: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "Unknown"
+        return "Version \(version) (Build \(build))"
+    }
     
     var body: some View {
         TabView {
@@ -356,7 +362,7 @@ struct PreferencesView: View {
                     .font(.title)
                     .bold()
                 
-                Text("Version 2.3.11")
+                Text(appVersionText)
                     .foregroundStyle(.secondary)
                 
                 Divider()

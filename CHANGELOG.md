@@ -5,6 +5,13 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.28] - 2026-03-15
+
+### Fixed
+- **Issue #24 - instant generation failure after cache reset** - Kept the embedded runtime Python script path safe from carriage-return tokenization that could trigger `IndentationError` before model download starts.
+- **About version display** - About tab now reads app version/build from bundle metadata instead of a hardcoded stale string.
+- **Model status wording** - Sidebar now reflects environment readiness explicitly and clarifies that model files download on first generation when cache is missing.
+
 ## [2.3.24] - 2026-03-14
 
 ### Fixed
