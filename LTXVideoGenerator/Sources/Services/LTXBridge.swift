@@ -272,7 +272,7 @@ try:
     log("Starting generation...")
     log(f"Command: {' '.join(cmd)}")
     
-    # Run the CLI module and stream combined output (binary read so we see tqdm \r updates)
+    # Run the CLI module and stream combined output (binary read so we see tqdm \\r updates)
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
