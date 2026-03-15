@@ -381,13 +381,26 @@ except Exception as e:
         var capturedEnhancedPrompt: String? = preEnhancedPrompt
         let failureHintLock = NSLock()
         var capturedFailureHint: String? = nil
+        let stderrLineBufferLock = NSLock()
+        var stderrLineBuffer = ""
         
         let output: String
         do {
-            output = try await runPython(script: script, timeout: 3600) { stderr in
+            output = try await runPython(script: script, timeout: 3600) { stderrChunk in
+            // Build complete logical lines from chunked stderr reads so STAGE/STATUS tokens
+            // are never dropped when a token is split across read boundaries.
+            stderrLineBufferLock.lock()
+            stderrLineBuffer += stderrChunk.replacingOccurrences(of: "\r", with: "\n")
+            let completeLines = stderrLineBuffer.components(separatedBy: "\n")
+            stderrLineBuffer = completeLines.last ?? ""
+            let linesToParse = Array(completeLines.dropLast())
+            stderrLineBufferLock.unlock()
+
+            guard !linesToParse.isEmpty else { return }
+
             // Capture enhanced prompt from stderr
             // Our generate.py emits "ENHANCED_PROMPT:..." and mlx_video may emit "Enhanced prompt: ..."
-            for line in stderr.components(separatedBy: "\n") {
+            for line in linesToParse {
                 let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
                 var extracted: String? = nil
                 if trimmed.hasPrefix("ENHANCED_PROMPT:") {
@@ -403,8 +416,8 @@ except Exception as e:
             }
             
             DispatchQueue.main.async {
-                // Parse line-by-line so chunked stderr reads never lose progress updates.
-                for raw in stderr.components(separatedBy: "\n") {
+                // Parse complete lines only; chunk boundary handling is done above.
+                for raw in linesToParse {
                     let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     if line.isEmpty { continue }
                     let cleanLine = line.replacingOccurrences(
