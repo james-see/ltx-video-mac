@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.35] - 2026-03-18
+
+### Fixed
+- **Distilled output corruption** - Align app runtime with `mlx-video-with-audio` VAE topology fix so distilled unified checkpoints decode using their embedded `decoder_blocks` graph rather than a mismatched static decoder path.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.18`.
+
 ## [2.3.34] - 2026-03-18
 
 ### Fixed
