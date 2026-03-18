@@ -40,6 +40,11 @@ class GenerationService: ObservableObject {
         queue.removeAll { $0.status == .pending }
     }
     
+    func clearError() {
+        error = nil
+        statusMessage = ""
+    }
+    
     func cancelCurrent() {
         processingTask?.cancel()
         if var request = currentRequest {
