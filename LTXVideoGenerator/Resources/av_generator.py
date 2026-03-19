@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Unified Audio-Video Generator using mlx-video-with-audio.
 
-This script wraps the mlx_video.generate_av module for generating
-video with synchronized audio in a single pass.
+Prefer: python -m mlx_video.generate_av (same flags). This script remains for
+manual testing and documents the public API.
 """
 
 import argparse
@@ -139,19 +139,7 @@ def main():
         "--no-audio",
         action="store_true",
         default=False,
-        help="Disable audio generation (video only)",
-    )
-    parser.add_argument(
-        "--repetition-penalty",
-        type=float,
-        default=1.2,
-        help="Gemma prompt enhancement repetition penalty (1.0-2.0)",
-    )
-    parser.add_argument(
-        "--top-p",
-        type=float,
-        default=0.9,
-        help="Gemma prompt enhancement top-p sampling (0.0-1.0)",
+        help="Disable audio in final file (video-only MP4)",
     )
 
     args = parser.parse_args()
@@ -159,8 +147,7 @@ def main():
     try:
         status_output("Loading unified audio-video model...")
 
-        # Import the mlx-video-with-audio package
-        from mlx_video.generate_av import generate_av
+        from mlx_video.generate_av import generate_video_with_audio
 
         is_i2v = args.image is not None
         mode_str = "I2V" if is_i2v else "T2V"
@@ -170,51 +157,29 @@ def main():
             f"{args.width}x{args.height}, {args.num_frames} frames"
         )
 
-        # Build generation kwargs
-        gen_kwargs = {
-            "prompt": args.prompt,
-            "height": args.height,
-            "width": args.width,
-            "num_frames": args.num_frames,
-            "num_inference_steps": args.num_inference_steps,
-            "cfg_scale": args.cfg_scale,
-            "model_repo": args.model_repo,
-            "output": args.output_path,
-        }
-        if args.negative_prompt:
-            gen_kwargs["negative_prompt"] = args.negative_prompt
-
-        # Add image conditioning if provided
-        if args.image:
-            gen_kwargs["image"] = args.image
-            gen_kwargs["image_strength"] = args.image_strength
-            status_output(
-                "Using source image: " f"{args.image} (strength={args.image_strength})"
-            )
-
-        # Pass tiling mode if supported
-        if args.tiling != "auto":
-            gen_kwargs["tiling"] = args.tiling
-
-        # Disable audio if requested
-        if args.no_audio:
-            gen_kwargs["no_audio"] = True
-            status_output("Audio generation disabled")
-
-        # Pass Gemma prompt enhancement params if non-default
-        if args.repetition_penalty != 1.2:
-            gen_kwargs["repetition_penalty"] = args.repetition_penalty
-        if args.top_p != 0.9:
-            gen_kwargs["top_p"] = args.top_p
-
-        audio_label = "without" if args.no_audio else "with synchronized"
-        status_output(f"Generating video {audio_label} audio...")
-        generate_av(**gen_kwargs)
+        generate_video_with_audio(
+            model_repo=args.model_repo,
+            text_encoder_repo=None,
+            prompt=args.prompt,
+            height=args.height,
+            width=args.width,
+            num_frames=args.num_frames,
+            seed=args.seed,
+            fps=args.fps,
+            output_path=args.output_path,
+            negative_prompt=args.negative_prompt,
+            cfg_scale=args.cfg_scale,
+            image=args.image,
+            image_strength=args.image_strength,
+            tiling=args.tiling,
+            num_inference_steps=args.num_inference_steps,
+            verbose=True,
+            no_audio=args.no_audio,
+        )
 
         status_output(f"Video with audio saved to: {args.output_path}")
         print("SUCCESS", file=sys.stderr)
 
-        # Output JSON result for Swift to parse
         result = {
             "video_path": args.output_path,
             "seed": args.seed,
@@ -226,8 +191,7 @@ def main():
     except ImportError as e:
         error_msg = (
             "mlx-video-with-audio not installed: "
-            f"{e}. Run: pip install "
-            "git+https://github.com/james-see/mlx-video-with-audio.git"
+            f"{e}. Run: pip install -U mlx-video-with-audio"
         )
         status_output(f"ERROR: {error_msg}")
         print(json.dumps({"success": False, "error": error_msg}))

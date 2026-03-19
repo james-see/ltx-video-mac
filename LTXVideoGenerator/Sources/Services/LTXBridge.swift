@@ -280,49 +280,27 @@ try:
     log(f"Seed: \(seed)")
     
     disable_audio = \(request.disableAudio ? "True" : "False")
-    resources_path = "\(resourcesPath)"
-    wrapper_script = os.path.join(resources_path, "av_generator.py")
-    use_wrapper = disable_audio
-    if use_wrapper and not os.path.exists(wrapper_script):
-        raise FileNotFoundError(f"Missing bundled script: {wrapper_script}")
     
-    # Build command; use bundled wrapper when no-audio is requested
-    if use_wrapper:
-        cmd = [
-            sys.executable, wrapper_script,
-            "--prompt", prompt,
-            "--height", str(\(genHeight)),
-            "--width", str(\(genWidth)),
-            "--num-frames", str(\(params.numFrames)),
-            "--seed", str(\(seed)),
-            "--fps", str(\(params.fps)),
-            "--steps", str(\(params.numInferenceSteps)),
-            "--cfg-scale", str(\(params.guidanceScale)),
-            "--output-path", "\(outputPath)",
-            "--model-repo", model_repo,
-            "--tiling", "\(params.vaeTilingMode)",
-            "--no-audio",
-        ]
-        if negative_prompt.strip():
-            cmd.extend(["--negative-prompt", negative_prompt])
-        log(f"Mode: {mode} (audio disabled)")
+    cmd = [
+        sys.executable, "-m", "mlx_video.generate_av",
+        "--prompt", prompt,
+        "--height", str(\(genHeight)),
+        "--width", str(\(genWidth)),
+        "--num-frames", str(\(params.numFrames)),
+        "--seed", str(\(seed)),
+        "--fps", str(\(params.fps)),
+        "--steps", str(\(params.numInferenceSteps)),
+        "--cfg-scale", str(\(params.guidanceScale)),
+        "--output-path", "\(outputPath)",
+        "--model-repo", model_repo,
+        "--tiling", "\(params.vaeTilingMode)",
+    ]
+    if negative_prompt.strip():
+        cmd.extend(["--negative-prompt", negative_prompt])
+    if disable_audio:
+        cmd.append("--no-audio")
+        log(f"Mode: {mode} (audio disabled; video-only mux)")
     else:
-        cmd = [
-            sys.executable, "-m", "mlx_video.generate_av",
-            "--prompt", prompt,
-            "--height", str(\(genHeight)),
-            "--width", str(\(genWidth)),
-            "--num-frames", str(\(params.numFrames)),
-            "--seed", str(\(seed)),
-            "--fps", str(\(params.fps)),
-            "--steps", str(\(params.numInferenceSteps)),
-            "--cfg-scale", str(\(params.guidanceScale)),
-            "--output-path", "\(outputPath)",
-            "--model-repo", model_repo,
-            "--tiling", "\(params.vaeTilingMode)",
-        ]
-        if negative_prompt.strip():
-            cmd.extend(["--negative-prompt", negative_prompt])
         log(f"Mode: {mode} (with audio)")
     
     # Add image conditioning if provided
@@ -339,7 +317,6 @@ try:
     log(f"Command: {' '.join(cmd)}")
     child_env = os.environ.copy()
     child_env["LTX_DEBUG_RUN_ID"] = "swift-bridge-config-audit"
-    child_env["LTX_DEBUG_STAGE1_FRAME"] = "/Users/jc/projects/ltxmac/.cursor/stage1-current-ccd9de.png"
     if use_local_mlx_video_repo:
         existing_pythonpath = child_env.get("PYTHONPATH", "")
         child_env["PYTHONPATH"] = (
@@ -536,7 +513,7 @@ except Exception as e:
                         failureHintLock.unlock()
                     } else if lower.contains("valueerror: [conv] expect the input channels") {
                         failureHintLock.lock()
-                        capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. This is an upstream `mlx-video-with-audio` model/package issue; please update the package and retry."
+                        capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. Update with: pip install -U \"mlx-video-with-audio>=0.1.23\". If it persists, your checkpoint may need `embedded_config.json` VAE `timestep_conditioning` — file an issue with logs."
                         failureHintLock.unlock()
                     } else if lower.contains("kiogpucommandbuffercallbackerroroutofmemory")
                                 || lower.contains("insufficient memory")
