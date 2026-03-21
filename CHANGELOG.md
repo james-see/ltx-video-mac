@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.43] - 2026-03-21
+
+### Added
+- **LTX-2.3 models (Beta)** - Two new model options: "LTX-2.3 Unified (Beta)" (~48GB bf16) and "LTX-2.3 Distilled Q4 (Beta)" (~22GB quantized). Based on the 22B-parameter LTX 2.3 architecture with gated attention, 8-layer connector, and BigVGAN vocoder.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.26`.
+
 ## [2.3.42] - 2026-03-21
 
 ### Fixed

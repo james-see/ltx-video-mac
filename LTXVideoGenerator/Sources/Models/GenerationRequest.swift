@@ -24,12 +24,20 @@ enum LTXModelCatalog {
             qualityWarning: nil
         ),
         LTXModel(
-            id: "ltx23_distilled_q4",
-            repo: "dgrauet/ltx-2.3-mlx-distilled-q4",
-            displayName: "LTX-2.3 Distilled Q4",
-            downloadSize: "~19.4GB",
+            id: "ltx23_unified",
+            repo: "notapalindrome/ltx23-mlx-av",
+            displayName: "LTX-2.3 Unified (Beta)",
+            downloadSize: "~48GB",
             supportsBuiltInAudio: true,
-            qualityWarning: "Experimental: this model may be unstable and does not yet produce consistently high-quality video. Prefer LTX-2 Unified for best results."
+            qualityWarning: nil
+        ),
+        LTXModel(
+            id: "ltx23_distilled_q4",
+            repo: "notapalindrome/ltx23-mlx-av-q4",
+            displayName: "LTX-2.3 Distilled Q4 (Beta)",
+            downloadSize: "~22GB",
+            supportsBuiltInAudio: true,
+            qualityWarning: "Quantized: lower memory footprint with some quality tradeoffs versus bf16."
         ),
     ]
 

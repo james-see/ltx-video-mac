@@ -388,7 +388,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.3.42;
+				MARKETING_VERSION = 2.3.43;
 				PRODUCT_BUNDLE_IDENTIFIER = com.ltxvideo.generator;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -416,7 +416,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 2.3.42;
+				MARKETING_VERSION = 2.3.43;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jamescampbell.ltxvideogenerator;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
