@@ -3,11 +3,16 @@ import Metal
 
 struct ParametersView: View {
     @EnvironmentObject var presetManager: PresetManager
+    @AppStorage(LTXModelCatalog.selectedModelIDKey) private var selectedModelID = LTXModelCatalog.defaultModelID
     
     @Binding var parameters: GenerationParameters
     @State private var showSavePreset = false
     @State private var newPresetName = ""
     @State private var availableVRAM = getAvailableVRAM()
+
+    private var selectedModel: LTXModel {
+        LTXModelCatalog.resolvedModel(id: selectedModelID)
+    }
     
     let vramTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
@@ -47,6 +52,38 @@ struct ParametersView: View {
             // Parameters
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let tips = selectedModel.tips {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "info.circle.fill")
+                                .foregroundStyle(.blue)
+                            Text(tips)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.blue.opacity(0.08))
+                        )
+                    }
+
+                    if let warning = selectedModel.qualityWarning {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                            Text(warning)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.orange.opacity(0.08))
+                        )
+                    }
+
                     // Inference steps
                     ParameterSlider(
                         title: "Inference Steps",
@@ -58,6 +95,16 @@ struct ParametersView: View {
                         step: 5,
                         icon: "arrow.triangle.2.circlepath"
                     )
+
+                    if let range = selectedModel.recommendedSteps {
+                        HStack(spacing: 4) {
+                            Image(systemName: "target")
+                                .foregroundStyle(.blue)
+                            Text("Recommended: \(range.lowerBound)–\(range.upperBound) steps")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                     
                     // Guidance scale
                     ParameterSlider(

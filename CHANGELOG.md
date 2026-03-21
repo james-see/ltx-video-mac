@@ -5,6 +5,11 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.44] - 2026-03-21
+
+### Added
+- **Model-specific tips in Parameters sidebar** - The right sidebar now shows contextual recommendations based on the selected model, including optimal inference step ranges and memory guidance. LTX-2.3 models display a blue info banner with distilled-model tips, and quantized models show an orange quality warning.
+
 ## [2.3.43] - 2026-03-21
 
 ### Added

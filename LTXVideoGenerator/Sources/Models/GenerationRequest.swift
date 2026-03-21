@@ -7,6 +7,14 @@ struct LTXModel: Identifiable, Codable, Hashable {
     let downloadSize: String
     let supportsBuiltInAudio: Bool
     let qualityWarning: String?
+    let recommendedStepsLower: Int?
+    let recommendedStepsUpper: Int?
+    let tips: String?
+
+    var recommendedSteps: ClosedRange<Int>? {
+        guard let lo = recommendedStepsLower, let hi = recommendedStepsUpper else { return nil }
+        return lo...hi
+    }
 }
 
 enum LTXModelCatalog {
@@ -21,7 +29,10 @@ enum LTXModelCatalog {
             displayName: "LTX-2 Unified",
             downloadSize: "~42GB",
             supportsBuiltInAudio: true,
-            qualityWarning: nil
+            qualityWarning: nil,
+            recommendedStepsLower: 20,
+            recommendedStepsUpper: 40,
+            tips: nil
         ),
         LTXModel(
             id: "ltx23_unified",
@@ -29,7 +40,10 @@ enum LTXModelCatalog {
             displayName: "LTX-2.3 Unified (Beta)",
             downloadSize: "~48GB",
             supportsBuiltInAudio: true,
-            qualityWarning: nil
+            qualityWarning: nil,
+            recommendedStepsLower: 15,
+            recommendedStepsUpper: 30,
+            tips: "Distilled model — 15-30 steps is optimal. More steps won't improve quality."
         ),
         LTXModel(
             id: "ltx23_distilled_q4",
@@ -37,7 +51,10 @@ enum LTXModelCatalog {
             displayName: "LTX-2.3 Distilled Q4 (Beta)",
             downloadSize: "~22GB",
             supportsBuiltInAudio: true,
-            qualityWarning: "Quantized: lower memory footprint with some quality tradeoffs versus bf16."
+            qualityWarning: "Quantized: lower memory footprint with some quality tradeoffs versus bf16.",
+            recommendedStepsLower: 15,
+            recommendedStepsUpper: 30,
+            tips: "Distilled model — 15-30 steps is optimal. Uses ~30GB RAM vs ~50GB for bf16."
         ),
     ]
 
