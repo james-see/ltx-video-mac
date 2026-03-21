@@ -137,6 +137,7 @@ class LTXBridge {
         
         let enableGemmaPromptEnhancement = UserDefaults.standard.bool(forKey: "enableGemmaPromptEnhancement")
         let saveAudioTrackSeparately = UserDefaults.standard.bool(forKey: "saveAudioTrackSeparately")
+        let useLocalMlxVideoRepoPref = UserDefaults.standard.bool(forKey: "useLocalMlxVideoRepo")
 
         // Apply prompt enhancement up-front so generation can continue safely even
         // when upstream enhancer internals fail.
@@ -205,24 +206,6 @@ def log(msg):
     print(msg, file=log_file, flush=True)
     print(msg, file=sys.stderr, flush=True)
 
-# region agent log
-def debug_log(location, message, data, hypothesis_id):
-    try:
-        payload = {
-            "sessionId": "ccd9de",
-            "runId": os.environ.get("LTX_DEBUG_RUN_ID", "swift-bridge"),
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(time.time() * 1000),
-        }
-        with open("/Users/jc/projects/ltxmac/.cursor/debug-ccd9de.log", "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload) + "\\n")
-    except Exception:
-        pass
-# endregion
-
 try:
     log("=== LTX-2 Unified AV Generation Started ===")
     log(f"Python: {sys.executable}")
@@ -234,41 +217,65 @@ try:
     model_repo = "\(modelRepo)"
     log(f"Model: {model_repo}")
     local_mlx_video_repo = os.path.expanduser("~/projects/mlx-video-with-audio")
-    use_local_mlx_video_repo = os.path.exists(os.path.join(local_mlx_video_repo, "mlx_video", "generate_av.py"))
-    if use_local_mlx_video_repo and local_mlx_video_repo not in sys.path:
-        sys.path.insert(0, local_mlx_video_repo)
-    
-    # region agent log
-    try:
-        import mlx_video
-        from mlx_video.version import __version__ as mlx_video_version
-        debug_log(
-            "LTXBridge.swift:inline-python",
-            "Resolved mlx_video runtime package",
-            {
-                "python": sys.executable,
-                "moduleFile": getattr(mlx_video, "__file__", None),
-                "modulePath0": sys.path[0] if sys.path else None,
-                "version": mlx_video_version,
-                "modelRepo": model_repo,
-                "localRepoCandidate": local_mlx_video_repo,
-                "usingLocalRepo": use_local_mlx_video_repo,
-            },
-            "H1",
+    local_has_mlx = os.path.exists(os.path.join(local_mlx_video_repo, "mlx_video", "generate_av.py"))
+
+    def _mlx_version_subprocess(extra_env):
+        env = os.environ.copy()
+        env.pop("PYTHONPATH", None)
+        for k, v in extra_env.items():
+            env[k] = v
+        r = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import mlx_video.version; print(mlx_video.version.__version__)",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=120,
         )
-    except Exception as debug_exc:
-        debug_log(
-            "LTXBridge.swift:inline-python",
-            "Failed to resolve mlx_video runtime package",
-            {
-                "python": sys.executable,
-                "error": repr(debug_exc),
-                "modelRepo": model_repo,
-            },
-            "H1",
-        )
-    # endregion
-    
+        if r.returncode != 0:
+            return None
+        return (r.stdout or "").strip() or None
+
+    def _parse_version_tuple(s):
+        if not s:
+            return None
+        parts = []
+        for seg in s.split("."):
+            digits = "".join(c for c in seg if c.isdigit())
+            try:
+                parts.append(int(digits) if digits else 0)
+            except Exception:
+                parts.append(0)
+        return tuple(parts)
+
+    pip_ver = _mlx_version_subprocess({})
+    local_ver = _mlx_version_subprocess({"PYTHONPATH": local_mlx_video_repo}) if local_has_mlx else None
+    use_local_pref = \(useLocalMlxVideoRepoPref ? "True" : "False")
+    force_local = os.environ.get("LTX_FORCE_LOCAL_MLX_VIDEO") == "1" or use_local_pref
+
+    if not local_has_mlx:
+        use_local_mlx_video_repo = False
+    elif force_local:
+        use_local_mlx_video_repo = True
+    elif pip_ver and local_ver:
+        use_local_mlx_video_repo = _parse_version_tuple(local_ver) > _parse_version_tuple(pip_ver)
+    else:
+        use_local_mlx_video_repo = bool(local_ver) and not pip_ver
+
+    log(
+        "mlx-video-with-audio versions: pip=%r local_repo=%r -> use_local_repo=%s"
+        % (pip_ver, local_ver, use_local_mlx_video_repo)
+    )
+    if local_has_mlx and not use_local_mlx_video_repo and pip_ver and local_ver:
+        if _parse_version_tuple(pip_ver) >= _parse_version_tuple(local_ver):
+            log(
+                "Using pip/site-packages (newer or same as ~/projects/mlx-video-with-audio). "
+                "Preferences: enable 'Use local mlx-video-with-audio repo' or set LTX_FORCE_LOCAL_MLX_VIDEO=1 to override."
+            )
+
     # Image-to-video mode
     source_image_path = "\(escapedImagePath)" if "\(escapedImagePath)" else None
     mode = "image-to-video" if source_image_path else "text-to-video"
@@ -316,24 +323,10 @@ try:
     log("Starting generation...")
     log(f"Command: {' '.join(cmd)}")
     child_env = os.environ.copy()
-    child_env["LTX_DEBUG_RUN_ID"] = "swift-bridge-config-audit"
+    # Drop inherited PYTHONPATH so venv site-packages wins unless we explicitly use a local checkout.
+    child_env.pop("PYTHONPATH", None)
     if use_local_mlx_video_repo:
-        existing_pythonpath = child_env.get("PYTHONPATH", "")
-        child_env["PYTHONPATH"] = (
-            f"{local_mlx_video_repo}:{existing_pythonpath}"
-            if existing_pythonpath else local_mlx_video_repo
-        )
-        # region agent log
-        debug_log(
-            "LTXBridge.swift:inline-python",
-            "Configured child PYTHONPATH for local mlx_video repo",
-            {
-                "pythonpath": child_env["PYTHONPATH"],
-                "localRepo": local_mlx_video_repo,
-            },
-            "H5",
-        )
-        # endregion
+        child_env["PYTHONPATH"] = local_mlx_video_repo
     
     # Run the CLI module and stream combined output (binary read so we see tqdm \\r updates)
     process = subprocess.Popen(

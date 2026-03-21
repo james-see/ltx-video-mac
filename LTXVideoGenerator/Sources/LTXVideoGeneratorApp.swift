@@ -32,6 +32,10 @@ struct RootView: View {
     @State private var showPythonSetupAlert = false
     @State private var hasCheckedPython = false
     @State private var pythonCheckMessage = ""
+    @State private var showLaunchPackageUpgradePrompt = false
+    @State private var pendingLaunchUpgradeDetails: PythonDetails?
+    @State private var launchPythonPathForUpgrade = ""
+    @State private var showPythonUpdateCompleteAlert = false
     
     init() {
         let history = HistoryManager()
@@ -58,31 +62,49 @@ struct RootView: View {
                 historyManager.loadInitialData()
                 presetManager.loadInitialData()
                 
-                // Check Python configuration on first launch
-                if !hasCheckedPython {
+                // One-time launch check: must NOT set hasCheckedPython until work finishes — if we set it
+                // before `await validateWithSubprocess`, a cancelled .task would skip validation forever.
+                guard !hasCheckedPython else { return }
+                
+                if !hasPythonPath {
+                    // No path configured - prompt to set up
+                    pythonCheckMessage = "LTX Video Generator requires Python with PyTorch and diffusers installed.\n\nPlease set your Python path in Preferences or use Auto Detect to find your Python installation."
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    showPythonSetupAlert = true
+                    hasCheckedPython = true
+                } else {
+                    let path = UserDefaults.standard.string(forKey: "pythonPath")!
+                    let result = await PythonEnvironment.shared.validateWithSubprocess(
+                        path: path,
+                        automaticInstallAndUpgrade: false
+                    )
                     hasCheckedPython = true
                     
-                    if !hasPythonPath {
-                        // No path configured - prompt to set up
-                        pythonCheckMessage = "LTX Video Generator requires Python with PyTorch and diffusers installed.\n\nPlease set your Python path in Preferences or use Auto Detect to find your Python installation."
-                        // Small delay to let the UI settle
-                        try? await Task.sleep(nanoseconds: 500_000_000)
+                    if result.success, let details = result.details {
+                        PythonEnvironment.shared.configureForPythonKit(details: details)
+                        PythonEnvironment.shared.applyValidatedDetailsForGeneration(path: path, details: details)
+                    } else if result.pendingUserConsent, let details = result.details {
+                        pendingLaunchUpgradeDetails = details
+                        launchPythonPathForUpgrade = path
+                        showLaunchPackageUpgradePrompt = true
+                    } else if !result.success {
+                        pythonCheckMessage = result.message + "\n\nPlease check your Python configuration in Preferences."
                         showPythonSetupAlert = true
-                    } else {
-                        // Path exists - validate it in background using safe subprocess
-                        let path = UserDefaults.standard.string(forKey: "pythonPath")!
-                        let result = await PythonEnvironment.shared.validateWithSubprocess(path: path)
-                        
-                        if !result.success {
-                            // Python validation failed - show alert with specific message
-                            pythonCheckMessage = result.message + "\n\nPlease check your Python configuration in Preferences."
-                            showPythonSetupAlert = true
-                        } else if let details = result.details {
-                            // Configure PythonKit for later use (this is safe now that we validated)
-                            PythonEnvironment.shared.configureForPythonKit(details: details)
-                        }
                     }
                 }
+            }
+            .alert("Update Python packages?", isPresented: $showLaunchPackageUpgradePrompt) {
+                Button("Not Now", role: .cancel) {}
+                Button("Upgrade") {
+                    Task { await performLaunchPackageUpgrade() }
+                }
+            } message: {
+                Text(launchPackageUpgradeMessage)
+            }
+            .alert("Update complete", isPresented: $showPythonUpdateCompleteAlert) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text("Python packages were updated successfully.")
             }
             .alert("Python Setup", isPresented: $showPythonSetupAlert) {
                 Button("Open Preferences") {
@@ -92,6 +114,48 @@ struct RootView: View {
             } message: {
                 Text(pythonCheckMessage)
             }
+    }
+    
+    private var launchPackageUpgradeMessage: String {
+        guard let d = pendingLaunchUpgradeDetails else {
+            return "Some packages need to be installed or upgraded in your Python environment."
+        }
+        var lines: [String] = []
+        if !d.missingPackages.isEmpty {
+            lines.append("Install: \(d.missingPackages.joined(separator: ", "))")
+        }
+        if !d.packagesNeedingUpgrade.isEmpty {
+            lines.append("Upgrade: \(d.packagesNeedingUpgrade.joined(separator: ", "))")
+        }
+        let body = lines.isEmpty ? "Packages need attention." : lines.joined(separator: "\n")
+        return body + "\n\nUpgrade now using pip in the Python path set in Preferences (virtualenv recommended)."
+    }
+    
+    /// Runs after user confirms the launch-time upgrade prompt.
+    private func performLaunchPackageUpgrade() async {
+        guard let details = pendingLaunchUpgradeDetails else { return }
+        let path = launchPythonPathForUpgrade
+        let pkgs = details.missingPackages + details.packagesNeedingUpgrade
+        guard !pkgs.isEmpty else {
+            showPythonUpdateCompleteAlert = true
+            return
+        }
+        let installResult = await PythonEnvironment.shared.installPackages(
+            pythonExecutable: details.executablePath,
+            packages: pkgs,
+            upgrade: true
+        )
+        if installResult.success {
+            let v = await PythonEnvironment.shared.validateWithSubprocess(path: path, automaticInstallAndUpgrade: true)
+            if v.success, let det = v.details {
+                PythonEnvironment.shared.configureForPythonKit(details: det)
+                PythonEnvironment.shared.applyValidatedDetailsForGeneration(path: path, details: det)
+            }
+            showPythonUpdateCompleteAlert = true
+        } else {
+            pythonCheckMessage = "Package update failed: \(installResult.message)\n\nPlease check your Python configuration in Preferences."
+            showPythonSetupAlert = true
+        }
     }
     
     private func openSettings() {

@@ -9,6 +9,8 @@ struct PreferencesView: View {
     @AppStorage("defaultAudioSource") private var defaultAudioSource = "elevenlabs"
     @AppStorage("enableGemmaPromptEnhancement") private var enableGemmaPromptEnhancement = false
     @AppStorage("saveAudioTrackSeparately") private var saveAudioTrackSeparately = false
+    /// When true, always prepend ~/projects/mlx-video-with-audio to PYTHONPATH if present (dev override).
+    @AppStorage("useLocalMlxVideoRepo") private var useLocalMlxVideoRepo = false
     @AppStorage(LTXModelCatalog.selectedModelIDKey) private var selectedModelID = LTXModelCatalog.defaultModelID
 
     @State private var pythonStatus: (success: Bool, message: String)?
@@ -208,6 +210,13 @@ struct PreferencesView: View {
                     Text("Supports both Python executable (e.g., /opt/homebrew/bin/python3) and dylib paths. Auto Detect will search common locations including Homebrew, pyenv, conda, and virtualenvs.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    Toggle("Use local mlx-video-with-audio repo (dev)", isOn: $useLocalMlxVideoRepo)
+                    Text(
+                        "If ~/projects/mlx-video-with-audio exists, the app normally uses your pip install unless the local checkout is newer. Turn this on to always prefer the local repo. Otherwise pip install -U can look ineffective because PYTHONPATH was overriding site-packages."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
                 
                 Section("Model") {
@@ -508,6 +517,7 @@ struct PreferencesView: View {
                 // If validation succeeded and we have details, configure for PythonKit
                 if result.success, let details = result.details {
                     PythonEnvironment.shared.configureForPythonKit(details: details)
+                    PythonEnvironment.shared.applyValidatedDetailsForGeneration(path: pythonPath, details: details)
                 }
             }
         }

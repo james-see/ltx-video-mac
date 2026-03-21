@@ -121,6 +121,34 @@ class GenerationService: ObservableObject {
         isProcessing = true
         progress = 0
         
+        // Ensure Python packages (including mlx-video-with-audio min version) match the path in Settings — no manual Validate required.
+        if let pythonPath = UserDefaults.standard.string(forKey: "pythonPath"), !pythonPath.isEmpty {
+            statusMessage = "Checking Python environment..."
+            let ensure = await PythonEnvironment.shared.ensureReadyForGeneration(path: pythonPath)
+            if !ensure.success {
+                queue[index].status = .failed
+                error = .generationFailed(ensure.message)
+                currentRequest = nil
+                isProcessing = false
+                progress = 0
+                queue.removeAll { $0.status != .pending }
+                processNextIfNeeded()
+                return
+            }
+            if let details = ensure.details {
+                PythonEnvironment.shared.configureForPythonKit(details: details)
+            }
+        } else {
+            queue[index].status = .failed
+            error = .pythonNotConfigured
+            currentRequest = nil
+            isProcessing = false
+            progress = 0
+            queue.removeAll { $0.status != .pending }
+            processNextIfNeeded()
+            return
+        }
+        
         // Load model if needed
         if !isModelLoaded {
             await loadModel()

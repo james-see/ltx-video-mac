@@ -34,6 +34,10 @@ class PythonEnvironment {
     private(set) var isConfigured = false
     private(set) var lastValidationResult: PythonDetails?
     
+    /// Cached successful validation for generation (same path + same min mlx-video version).
+    private var generationValidationCache: (path: String, minVersion: String, timestamp: Date, details: PythonDetails)?
+    private let generationValidationCacheTTL: TimeInterval = 5 * 60
+    
     private init() {}
     
     // MARK: - Path Type Detection
@@ -174,12 +178,18 @@ class PythonEnvironment {
     
     // MARK: - Subprocess Validation (Safe - Won't Crash)
     
-    /// Validate Python installation using subprocess - safe and won't crash the app
-    /// Auto-installs missing packages in virtualenvs and auto-upgrades outdated packages once, then re-validates.
-    func validateWithSubprocess(path: String, alreadyTriedUpgrade: Bool = false, alreadyTriedInstall: Bool = false) async -> (success: Bool, message: String, details: PythonDetails?) {
+    /// Validate Python installation using subprocess - safe and won't crash the app.
+    /// When `automaticInstallAndUpgrade` is true (default), installs missing packages in virtualenvs and upgrades outdated packages, then re-validates.
+    /// When false, returns `pendingUserConsent: true` for venvs that need install/upgrade so the UI can prompt before running pip.
+    func validateWithSubprocess(
+        path: String,
+        automaticInstallAndUpgrade: Bool = true,
+        alreadyTriedUpgrade: Bool = false,
+        alreadyTriedInstall: Bool = false
+    ) async -> (success: Bool, message: String, details: PythonDetails?, pendingUserConsent: Bool) {
         // Step 1: Check file exists
         guard FileManager.default.fileExists(atPath: path) else {
-            return (false, "File not found: \(path)", nil)
+            return (false, "File not found: \(path)", nil, false)
         }
         
         // Step 2: Determine path type and get executable
@@ -190,7 +200,7 @@ class PythonEnvironment {
         switch pathType {
         case .dylib:
             guard let exec = dylibToExecutable(path) else {
-                return (false, "Could not find Python executable for dylib. Try providing the python3 executable path instead.", nil)
+                return (false, "Could not find Python executable for dylib. Try providing the python3 executable path instead.", nil, false)
             }
             executablePath = exec
             dylibPath = path
@@ -203,20 +213,20 @@ class PythonEnvironment {
                 executablePath = path
                 dylibPath = executableToDylib(path)
             } else {
-                return (false, "Path is neither a valid Python executable nor a dylib: \(path)", nil)
+                return (false, "Path is neither a valid Python executable nor a dylib: \(path)", nil, false)
             }
         }
         
         // Step 3: Verify executable works
         guard FileManager.default.isExecutableFile(atPath: executablePath) else {
-            return (false, "Python executable not found or not executable: \(executablePath)", nil)
+            return (false, "Python executable not found or not executable: \(executablePath)", nil, false)
         }
         
         // Step 4: Get Python version via subprocess
         let versionScript = "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
         guard let versionOutput = runPythonSync(executable: executablePath, script: versionScript),
               !versionOutput.isEmpty else {
-            return (false, "Failed to get Python version. The executable may be corrupted or incompatible.", nil)
+            return (false, "Failed to get Python version. The executable may be corrupted or incompatible.", nil, false)
         }
         
         let version = versionOutput.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -227,7 +237,7 @@ class PythonEnvironment {
             let major = versionParts[0]
             let minor = versionParts[1]
             if major < 3 || (major == 3 && minor < 10) {
-                return (false, "Python \(version) is too old. LTX Video requires Python 3.10 or newer.", nil)
+                return (false, "Python \(version) is too old. LTX Video requires Python 3.10 or newer.", nil, false)
             }
         }
         
@@ -293,6 +303,15 @@ class PythonEnvironment {
         )
         
         if !missingPackages.isEmpty {
+            // Launch / assessment mode: ask user before pip (venv only)
+            if !automaticInstallAndUpgrade && isVirtualEnvironment(executablePath) {
+                return (
+                    false,
+                    "Python packages need to be installed or upgraded in your virtual environment.",
+                    details,
+                    true
+                )
+            }
             // Auto-install missing packages for virtualenvs (safe path for managed dependencies)
             if !alreadyTriedInstall && isVirtualEnvironment(executablePath) {
                 // Use -U here so "missing" also self-heals stale/broken installs.
@@ -302,32 +321,78 @@ class PythonEnvironment {
                     upgrade: true
                 )
                 if installSuccess {
-                    return await validateWithSubprocess(path: path, alreadyTriedUpgrade: alreadyTriedUpgrade, alreadyTriedInstall: true)
+                    return await validateWithSubprocess(
+                        path: path,
+                        automaticInstallAndUpgrade: automaticInstallAndUpgrade,
+                        alreadyTriedUpgrade: alreadyTriedUpgrade,
+                        alreadyTriedInstall: true
+                    )
                 }
-                return (false, "Auto-install failed: \(installMessage)", details)
+                return (false, "Auto-install failed: \(installMessage)", details, false)
             }
             let pipCommand = "pip install \(missingPackages.joined(separator: " "))"
-            return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details)
+            return (false, "Python \(version) found but missing packages: \(missingPackages.joined(separator: ", ")). Run: \(pipCommand)", details, false)
         }
 
         if !hasMLX {
-            return (false, "Python \(version) found but MLX not properly configured. Ensure you're on Apple Silicon.", details)
+            return (false, "Python \(version) found but MLX not properly configured. Ensure you're on Apple Silicon.", details, false)
         }
 
         // Auto-upgrade outdated packages (e.g. mlx-video-with-audio) and re-validate
         if !packagesNeedingUpgrade.isEmpty && !alreadyTriedUpgrade {
+            if !automaticInstallAndUpgrade && isVirtualEnvironment(executablePath) {
+                return (
+                    false,
+                    "Python packages need to be upgraded in your virtual environment (e.g. mlx-video-with-audio).",
+                    details,
+                    true
+                )
+            }
             let (upgradeSuccess, upgradeMessage) = await installPackages(pythonExecutable: executablePath, packages: packagesNeedingUpgrade, upgrade: true)
             if upgradeSuccess {
-                return await validateWithSubprocess(path: path, alreadyTriedUpgrade: true, alreadyTriedInstall: alreadyTriedInstall)
+                return await validateWithSubprocess(
+                    path: path,
+                    automaticInstallAndUpgrade: automaticInstallAndUpgrade,
+                    alreadyTriedUpgrade: true,
+                    alreadyTriedInstall: alreadyTriedInstall
+                )
             }
-            return (false, "Upgrade failed: \(upgradeMessage)", details)
+            return (false, "Upgrade failed: \(upgradeMessage)", details, false)
         }
 
         if !packagesNeedingUpgrade.isEmpty {
-            return (false, "Python \(version) found but mlx-video-with-audio needs upgrade. Run: pip install -U \"mlx-video-with-audio>=\(mlxVideoMinVersion)\"", details)
+            return (false, "Python \(version) found but mlx-video-with-audio needs upgrade. Run: pip install -U \"mlx-video-with-audio>=\(mlxVideoMinVersion)\"", details, false)
         }
 
-        return (true, "Python \(version) configured with MLX", details)
+        return (true, "Python \(version) configured with MLX", details, false)
+    }
+
+    /// Ensures the configured Python path has required packages and minimum `mlx-video-with-audio` (auto-install / upgrade in venvs).
+    /// Call before generation so users do not need to open Preferences and click Validate.
+    func ensureReadyForGeneration(path: String) async -> (success: Bool, message: String, details: PythonDetails?) {
+        let now = Date()
+        if let c = generationValidationCache,
+           c.path == path,
+           c.minVersion == mlxVideoMinVersion,
+           now.timeIntervalSince(c.timestamp) < generationValidationCacheTTL {
+            return (true, "Python environment ready", c.details)
+        }
+        let result = await validateWithSubprocess(path: path)
+        if result.success, let d = result.details {
+            generationValidationCache = (path, mlxVideoMinVersion, now, d)
+        } else {
+            generationValidationCache = nil
+        }
+        return (result.success, result.message, result.details)
+    }
+
+    /// Record a successful validation (e.g. from Preferences) so the next generation skips redundant work.
+    func applyValidatedDetailsForGeneration(path: String, details: PythonDetails) {
+        generationValidationCache = (path, mlxVideoMinVersion, Date(), details)
+    }
+
+    func clearGenerationValidationCache() {
+        generationValidationCache = nil
     }
 
     /// Compare semantic versions. Returns true if a < b
@@ -570,7 +635,8 @@ class PythonEnvironment {
         var systemCandidates: [(path: String, result: (success: Bool, message: String, details: PythonDetails?))] = []
         
         for path in candidates {
-            let result = await validateWithSubprocess(path: path)
+            let raw = await validateWithSubprocess(path: path)
+            let result = (success: raw.success, message: raw.message, details: raw.details)
             let isVenv = isVirtualEnvironment(path)
             
             if result.success {
@@ -741,7 +807,7 @@ class PythonEnvironment {
     /// Synchronous subprocess validation for legacy API
     private func validateWithSubprocessSync(path: String) -> (success: Bool, message: String, details: PythonDetails?) {
         // Run async validation on a background thread and wait
-        var result: (success: Bool, message: String, details: PythonDetails?) = (false, "Validation timeout", nil)
+        var result: (success: Bool, message: String, details: PythonDetails?, pendingUserConsent: Bool) = (false, "Validation timeout", nil, false)
         
         let semaphore = DispatchSemaphore(value: 0)
         Task {
@@ -750,6 +816,6 @@ class PythonEnvironment {
         }
         _ = semaphore.wait(timeout: .now() + 120)  // Allow time for auto-upgrade
         
-        return result
+        return (result.success, result.message, result.details)
     }
 }

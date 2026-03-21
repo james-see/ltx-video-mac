@@ -5,6 +5,21 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.41] - 2026-03-21
+
+### Added
+- **Launch-time Python package consent** - On startup, if your configured venv needs installs/upgrades, the app asks before running `pip`, lists **Install** / **Upgrade** lines, then shows **Update complete** when finished.
+- **Preferences: “Use local mlx-video-with-audio repo (dev)”** - Optional override when `~/projects/mlx-video-with-audio` exists; by default the app prefers **newer pip** over an older local checkout so `pip install -U` actually applies.
+
+### Fixed
+- **Launch validation task** - `hasCheckedPython` is only set after validation finishes so a cancelled `.task` cannot skip checks permanently.
+- **Generation preflight** - Runs the same environment check/upgrade path as validation before each job (cached briefly) so users are not forced to open Preferences after changing packages.
+- **Bridge PYTHONPATH** - Child processes clear inherited `PYTHONPATH` unless explicitly using a local repo; avoids stale shell paths shadowing site-packages.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.24` (unchanged minimum; launch flow makes upgrades visible).
+- Download stall watchdog extended for very large model downloads.
+
 ## [2.3.37] - 2026-03-18
 
 ### Fixed
