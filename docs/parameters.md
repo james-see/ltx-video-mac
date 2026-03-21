@@ -20,16 +20,19 @@ Detailed explanation of all generation parameters for LTX-2.
 
 ## Model
 
-The app uses **LTX-2 Unified** running on MLX (Apple's machine learning framework).
+The app supports two LTX-2 models running on MLX (Apple's machine learning framework). Select your model in Preferences.
 
-| Model | Parameters | Size | Pipeline |
-|:------|:-----------|:-----|:---------|
-| LTX-2 Unified | 19B | ~42GB | 2-stage + audio |
+| Model | Parameters | Size | Vocoder | Notes |
+|:------|:-----------|:-----|:--------|:------|
+| LTX-2 Unified (`notapalindrome/ltx2-mlx-av`) | 19B | ~42GB | Standard | Original unified model |
+| LTX-2.3 Distilled Q4 (`dgrauet/ltx-2.3-mlx-distilled-q4`) | 19B (Q4) | ~19.4GB | BigVGAN | Quantized, smaller download |
 
-The 2-stage pipeline:
+Both models use a 2-stage pipeline:
 1. **Stage 1:** Generate at half resolution
 2. **Stage 2:** Upsample and refine to full resolution
-3. **Audio:** Synchronized audio generated alongside video
+3. **Audio:** Synchronized stereo audio generated alongside video (24kHz → 48kHz with bandwidth extension)
+
+See [Architecture](architecture) for full technical details on how each model is loaded and decoded.
 
 ---
 
