@@ -495,11 +495,11 @@ except Exception as e:
                     } else if cleanLine.hasPrefix("TEXT_ENCODER_CONFIG_ERROR:") {
                         let detail = String(cleanLine.dropFirst("TEXT_ENCODER_CONFIG_ERROR:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
                         failureHintLock.lock()
-                        capturedFailureHint = "Text encoder configuration mismatch detected. \(detail) Update with: pip install -U \"mlx-video-with-audio>=0.1.24\" and retry."
+                        capturedFailureHint = "Text encoder configuration mismatch detected. \(detail) Update with: pip install -U \"mlx-video-with-audio>=0.1.25\" and retry."
                         failureHintLock.unlock()
                     } else if lower.contains("keyerror: 'text_config'") {
                         failureHintLock.lock()
-                        capturedFailureHint = "Text encoder config mismatch (`text_config` missing). This usually means an outdated or misconfigured `mlx-video-with-audio` install. Update with: pip install -U \"mlx-video-with-audio>=0.1.24\" and retry."
+                        capturedFailureHint = "Text encoder config mismatch (`text_config` missing). This usually means an outdated or misconfigured `mlx-video-with-audio` install. Update with: pip install -U \"mlx-video-with-audio>=0.1.25\" and retry."
                         failureHintLock.unlock()
                     } else if lower.contains("mlx-video-with-audio not installed") || lower.contains("cannot import name 'generate_av'") {
                         failureHintLock.lock()
@@ -507,7 +507,7 @@ except Exception as e:
                         failureHintLock.unlock()
                     } else if lower.contains("valueerror: [conv] expect the input channels") {
                         failureHintLock.lock()
-                        capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. Update with: pip install -U \"mlx-video-with-audio>=0.1.24\". If it persists, your checkpoint may need `embedded_config.json` VAE `timestep_conditioning` — file an issue with logs."
+                        capturedFailureHint = "Detected MLX VAE channel mismatch during decoding. Update with: pip install -U \"mlx-video-with-audio>=0.1.25\". If it persists, your checkpoint may need `embedded_config.json` VAE `timestep_conditioning` — file an issue with logs."
                         failureHintLock.unlock()
                     } else if lower.contains("kiogpucommandbuffercallbackerroroutofmemory")
                                 || lower.contains("insufficient memory")
