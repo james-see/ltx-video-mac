@@ -24,7 +24,7 @@ struct PythonDetails {
 }
 
 /// Minimum mlx-video-with-audio version (distilled AV decode fixes + runtime verification)
-private let mlxVideoMinVersion = "0.1.26"
+private let mlxVideoMinVersion = "0.1.27"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes

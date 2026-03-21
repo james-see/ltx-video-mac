@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.45] - 2026-03-21
+
+### Fixed
+- **LTX-2.3 garbled video output** - Fixed two bugs in `mlx-video-with-audio` that caused garbled mosaic output for LTX 2.3 models: upsampler weights not loading from unified format (prefix not stripped), and VAE latent statistics missing for Q4 split format.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.27`.
+
 ## [2.3.44] - 2026-03-21
 
 ### Added
