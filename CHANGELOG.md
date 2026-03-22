@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.46] - 2026-03-21
+
+### Fixed
+- **Image-to-video startup crash** - Updated app minimum dependency to pull in `mlx-video-with-audio` fix for missing unified VAE metadata fallback, resolving `KeyError: 0` during VAE encoder load on I2V runs.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.28`.
+
 ## [2.3.45] - 2026-03-21
 
 ### Fixed
