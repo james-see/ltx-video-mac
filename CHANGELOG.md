@@ -5,6 +5,14 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.48] - 2026-03-23
+
+### Fixed
+- **LTX-2.3 Image-to-Video crash** - VAE encoder now reads the correct block topology from `embedded_config.json` for 2.3 models instead of using the LTX-2 default, fixing a shape mismatch (`1024 vs 2048`) in the encoder residual connection.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.30`.
+
 ## [2.3.47] - 2026-03-22
 
 ### Added

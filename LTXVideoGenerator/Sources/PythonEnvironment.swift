@@ -23,8 +23,8 @@ struct PythonDetails {
     }
 }
 
-/// Minimum mlx-video-with-audio version (runtime version diagnostics for 2.3 debugging)
-private let mlxVideoMinVersion = "0.1.29"
+/// Minimum mlx-video-with-audio version (fix VAE encoder topology for 2.3 I2V)
+private let mlxVideoMinVersion = "0.1.30"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
