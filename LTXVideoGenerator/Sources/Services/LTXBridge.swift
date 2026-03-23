@@ -568,6 +568,9 @@ except Exception as e:
                             ? "Stage 1 (\(step)/\(total)): Generating at half resolution"
                             : "Stage 2 (\(step)/\(total)): Refining at full resolution"
                         progressHandler(mappedProgress, message)
+                    } else if cleanLine.hasPrefix("MLX_VIDEO_VERSION:") {
+                        let version = String(cleanLine.dropFirst(18))
+                        print("[LTXBridge] mlx-video-with-audio v\(version)")
                     } else if cleanLine.hasPrefix("MODEL:CACHED:") {
                         let repo = String(cleanLine.dropFirst(13))
                         progressHandler(0.08, "Model cached: \(repo)")
