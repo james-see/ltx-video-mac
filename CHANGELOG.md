@@ -5,6 +5,16 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.52] - 2026-04-07
+
+### Fixed
+- **LTX-2.3 garbled/mosaic output** — Require `mlx-video-with-audio>=0.1.33` which forces all unified models through the legacy fixed-sigma Euler sampler (the `ltx2_schedule` dynamic sigmas produced garbled output with MLX-converted 2.3 weights), disables decoder residual connections that caused blockiness, and guards the encoder skip connection against shape mismatch on I2V. LTX-2 Unified is unaffected.
+
+## [2.3.51] - 2026-04-07
+
+### Added
+- **Image persistence** — Selected source image for Image-to-Video now persists between renders and across app launches. History regenerate also restores the original source image.
+
 ## [2.3.50] - 2026-03-23
 
 ### Fixed
