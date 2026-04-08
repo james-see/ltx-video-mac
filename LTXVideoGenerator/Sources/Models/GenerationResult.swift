@@ -16,6 +16,7 @@ struct GenerationResult: Identifiable, Codable {
     let audioPath: String?       // Path to voiceover audio
     let musicPath: String?       // Path to background music
     let musicGenre: String?      // Music genre used
+    let sourceImagePath: String?  // Source image used for I2V
     let createdAt: Date
     let completedAt: Date
     let duration: TimeInterval
@@ -81,6 +82,7 @@ struct GenerationResult: Identifiable, Codable {
         audioPath: String?,
         musicPath: String?,
         musicGenre: String?,
+        sourceImagePath: String? = nil,
         createdAt: Date,
         completedAt: Date,
         duration: TimeInterval,
@@ -101,6 +103,7 @@ struct GenerationResult: Identifiable, Codable {
         self.audioPath = audioPath
         self.musicPath = musicPath
         self.musicGenre = musicGenre
+        self.sourceImagePath = sourceImagePath
         self.createdAt = createdAt
         self.completedAt = completedAt
         self.duration = duration
@@ -123,6 +126,7 @@ struct GenerationResult: Identifiable, Codable {
         case audioPath
         case musicPath
         case musicGenre
+        case sourceImagePath
         case createdAt
         case completedAt
         case duration
@@ -146,6 +150,7 @@ struct GenerationResult: Identifiable, Codable {
         audioPath = try container.decodeIfPresent(String.self, forKey: .audioPath)
         musicPath = try container.decodeIfPresent(String.self, forKey: .musicPath)
         musicGenre = try container.decodeIfPresent(String.self, forKey: .musicGenre)
+        sourceImagePath = try container.decodeIfPresent(String.self, forKey: .sourceImagePath)
         createdAt = try container.decode(Date.self, forKey: .createdAt)
         completedAt = try container.decode(Date.self, forKey: .completedAt)
         duration = try container.decode(TimeInterval.self, forKey: .duration)
@@ -171,6 +176,7 @@ extension GenerationResult {
             audioPath: nil,
             musicPath: nil,
             musicGenre: nil,
+            sourceImagePath: nil,
             createdAt: Date().addingTimeInterval(-120),
             completedAt: Date(),
             duration: 45.5,

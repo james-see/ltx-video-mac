@@ -171,6 +171,7 @@ class HistoryManager: ObservableObject {
                     audioPath: result.audioPath,
                     musicPath: result.musicPath,
                     musicGenre: result.musicGenre,
+                    sourceImagePath: result.sourceImagePath,
                     createdAt: result.createdAt,
                     completedAt: result.completedAt,
                     duration: result.duration,

@@ -221,6 +221,7 @@ struct HistoryView: View {
             voiceoverText: result.voiceoverText,
             voiceoverSource: result.voiceoverSource,
             voiceoverVoice: result.voiceoverVoice,
+            sourceImagePath: result.sourceImagePath,
             musicEnabled: result.hasMusic,
             musicGenre: result.musicGenre,
             modelId: result.modelId,

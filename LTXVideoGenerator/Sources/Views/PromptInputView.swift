@@ -14,7 +14,7 @@ struct PromptInputView: View {
     @State private var showVoiceover = false
     @State private var showMusic = false
     @State private var showImageToVideo = false
-    @State private var sourceImagePath: String?
+    @AppStorage("sourceImagePath") private var storedImagePath = ""
     @State private var sourceImageThumbnail: NSImage?
     @State private var showCompletedIndicator = false
     @FocusState private var isPromptFocused: Bool
@@ -45,6 +45,10 @@ struct PromptInputView: View {
     @State private var previewStatusMessage = ""
     @State private var showMemoryRiskAlert = false
     @State private var pendingQueueAction: PendingQueueAction?
+
+    private var sourceImagePath: String? {
+        storedImagePath.isEmpty ? nil : storedImagePath
+    }
 
     private var selectedModel: LTXModel {
         LTXModelCatalog.resolvedModel(id: selectedModelID)
@@ -574,6 +578,17 @@ struct PromptInputView: View {
                 }
             )
         }
+        .onAppear {
+            if !storedImagePath.isEmpty && sourceImageThumbnail == nil {
+                let url = URL(fileURLWithPath: storedImagePath)
+                if FileManager.default.fileExists(atPath: storedImagePath) {
+                    loadThumbnail(from: url)
+                    showImageToVideo = true
+                } else {
+                    storedImagePath = ""
+                }
+            }
+        }
         .onChange(of: selectedModelID) { _, _ in
             if !selectedModel.supportsBuiltInAudio {
                 disableAudio = false
@@ -709,7 +724,7 @@ struct PromptInputView: View {
         panel.prompt = "Select"
         
         if panel.runModal() == .OK, let url = panel.url {
-            sourceImagePath = url.path
+            storedImagePath = url.path
             loadThumbnail(from: url)
             
             // Auto-expand the section when image is selected
@@ -743,7 +758,7 @@ struct PromptInputView: View {
     }
     
     private func clearSourceImage() {
-        sourceImagePath = nil
+        storedImagePath = ""
         sourceImageThumbnail = nil
     }
 }
