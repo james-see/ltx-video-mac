@@ -75,10 +75,10 @@ If enhancement returns empty (e.g. safety filter), the app auto-retries with fil
 
 You can animate images into videos:
 
-1. Expand the **Image to Video** section
-2. Click **Select Image** to choose a source image
-3. Adjust **Image Strength** (1.0 = full influence, 0.0 = ignore image)
-4. The first frame will be conditioned on your image
+1. On the main **Generate** screen (prompt column), expand the **Image to Video** disclosure section — it sits below **Prompt Enhancement** and above **Negative Prompt**.
+2. Click **Select Source Image...** and pick an image file; it becomes the conditioned first frame.
+3. Optionally adjust **Image Strength** (1.0 = full influence, lower = more motion freedom).
+4. Write a prompt that describes the motion; then generate as usual.
 
 ## Adding Audio
 
