@@ -622,14 +622,17 @@ class AudioService: ObservableObject {
             }
         }
         
-        // Parse result
-        if let data = output.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let success = json["success"] as? Bool, success {
-            progressHandler(1.0, "Audio generated")
-            return URL(fileURLWithPath: outputPath)
+        // Parse result — Kokoro / mlx-audio may print to stdout before our json.dumps line
+        if let json = Self.parseMLXAudioPythonStdout(output),
+           let success = json["success"] as? Bool {
+            if success {
+                progressHandler(1.0, "Audio generated")
+                return URL(fileURLWithPath: outputPath)
+            }
+            let err = (json["error"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "MLX Audio reported failure"
+            throw AudioError.mlxAudioFailed(err)
         }
-        
+
         throw AudioError.mlxAudioFailed("Failed to parse output: \(output)")
     }
     
@@ -1038,7 +1041,20 @@ class AudioService: ObservableObject {
     }
     
     // MARK: - Python Runner
-    
+
+    /// Extracts the app-emitted JSON from Python stdout. Third-party libs (e.g. Kokoro) may print lines before `json.dumps`.
+    private static func parseMLXAudioPythonStdout(_ output: String) -> [String: Any]? {
+        let lines = output.split(whereSeparator: \.isNewline)
+        for line in lines.reversed() {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.first == "{", let data = trimmed.data(using: .utf8) else { continue }
+            guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  obj["success"] is Bool else { continue }
+            return obj
+        }
+        return nil
+    }
+
     private func runPython(
         executable: String,
         script: String,
