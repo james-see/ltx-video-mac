@@ -5,6 +5,11 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.54] - 2026-04-23
+
+### Fixed
+- **Issue #45 — text encoder config validation** — Require `mlx-video-with-audio>=0.1.34` which relaxes `_looks_like_text_config` to accept Gemma `model_type`-based configs and flat configs without `vocab_size`, auto-retries with a fresh HF download when the cached text encoder config looks corrupt, and distinguishes AV-model-misrouted configs with a specific error message. Updated LTXBridge hint text and added `huggingface-cli delete-cache` guidance.
+
 ## [2.3.53] - 2026-04-22
 
 ### Fixed

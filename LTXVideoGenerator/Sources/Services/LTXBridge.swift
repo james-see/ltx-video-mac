@@ -495,11 +495,11 @@ except Exception as e:
                     } else if cleanLine.hasPrefix("TEXT_ENCODER_CONFIG_ERROR:") {
                         let detail = String(cleanLine.dropFirst("TEXT_ENCODER_CONFIG_ERROR:".count)).trimmingCharacters(in: .whitespacesAndNewlines)
                         failureHintLock.lock()
-                        capturedFailureHint = "Text encoder configuration mismatch detected. \(detail) Update with: pip install -U \"mlx-video-with-audio>=0.1.25\" and retry."
+                        capturedFailureHint = "Text encoder configuration mismatch detected. \(detail) Update with: pip install -U \"mlx-video-with-audio>=0.1.34\" and retry. If it persists, clear the Hugging Face cache: huggingface-cli delete-cache"
                         failureHintLock.unlock()
-                    } else if lower.contains("keyerror: 'text_config'") {
+                    } else if lower.contains("keyerror: 'text_config'") || lower.contains("missing expected keys") || lower.contains("missing `text_config`") {
                         failureHintLock.lock()
-                        capturedFailureHint = "Text encoder config mismatch (`text_config` missing). This usually means an outdated or misconfigured `mlx-video-with-audio` install. Update with: pip install -U \"mlx-video-with-audio>=0.1.25\" and retry."
+                        capturedFailureHint = "Text encoder config mismatch (`text_config` missing). Update with: pip install -U \"mlx-video-with-audio>=0.1.34\" and retry. If it persists, clear the Hugging Face cache: huggingface-cli delete-cache"
                         failureHintLock.unlock()
                     } else if lower.contains("mlx-video-with-audio not installed") || lower.contains("cannot import name 'generate_av'") {
                         failureHintLock.lock()
