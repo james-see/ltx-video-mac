@@ -1,4 +1,5 @@
 import Darwin
+import Foundation
 
 /// Host memory stats for lightweight preflight checks (not a guarantee of peak MLX usage).
 enum MacOSSystemMemory {
