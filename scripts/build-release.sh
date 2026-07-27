@@ -43,7 +43,7 @@ xcodebuild -project LTXVideoGenerator.xcodeproj \
 
 # Export the app
 echo "Exporting app..."
-cp -R "${ARCHIVE_PATH}/Products/Applications/${APP_NAME}.app" "${APP_PATH}"
+ditto "${ARCHIVE_PATH}/Products/Applications/${APP_NAME}.app" "${APP_PATH}"
 
 # Verify signature
 echo "Verifying signature..."

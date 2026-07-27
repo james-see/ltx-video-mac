@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.64] - 2026-07-27
+
+### Fixed
+- **Issue #63 — Copyable seed** — The seed value in the History detail view is now text-selectable and has a copy-to-clipboard button next to it.
+- **Issue #70 — Invalid code signature in DMG** — Replace `cp -R` with `ditto` when exporting the app from the Xcode archive in all build paths (CI workflow, `build-release.sh`, `build-local.sh`). `cp -R` does not preserve extended attributes (xattrs) that the code signature relies on, causing `codesign --verify --deep --strict` to fail on the extracted app.
+
 ## [2.3.62] - 2026-05-12
 
 ### Added

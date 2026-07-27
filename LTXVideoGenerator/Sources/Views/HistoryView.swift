@@ -373,7 +373,7 @@ struct HistoryDetailView: View {
                         DetailItem(label: "FPS", value: "\(result.parameters.fps)")
                         DetailItem(label: "Steps", value: "\(result.parameters.numInferenceSteps)")
                         DetailItem(label: "Guidance", value: String(format: "%.1f", result.parameters.guidanceScale))
-                        DetailItem(label: "Seed", value: "\(result.seed)")
+                        DetailItem(label: "Seed", value: "\(result.seed)", copyable: true)
                         DetailItem(label: "Model", value: result.model.displayName)
                     }
                     
@@ -462,14 +462,33 @@ struct HistoryDetailView: View {
 struct DetailItem: View {
     let label: String
     let value: String
+    var copyable: Bool = false
     
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text(value)
-                .font(.subheadline)
+            if copyable {
+                HStack(spacing: 4) {
+                    Text(value)
+                        .font(.subheadline)
+                        .textSelection(.enabled)
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(value, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Copy \(label)")
+                }
+            } else {
+                Text(value)
+                    .font(.subheadline)
+            }
         }
     }
 }
