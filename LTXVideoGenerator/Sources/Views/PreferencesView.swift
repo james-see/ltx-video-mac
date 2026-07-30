@@ -3,6 +3,7 @@ import SwiftUI
 struct PreferencesView: View {
     @AppStorage("pythonPath") private var pythonPath = ""
     @AppStorage("outputDirectory") private var outputDirectory = ""
+    @AppStorage(HuggingFaceCacheConfiguration.directoryKey) private var huggingFaceCacheDirectory = ""
     @AppStorage("autoLoadModel") private var autoLoadModel = false
     @AppStorage("keepCompletedInQueue") private var keepCompletedInQueue = false
     @AppStorage("elevenLabsApiKey") private var elevenLabsApiKey = ""
@@ -33,6 +34,21 @@ struct PreferencesView: View {
 
     private var selectedTextEncoder: LTXTextEncoder {
         LTXTextEncoderCatalog.resolvedTextEncoder(id: selectedTextEncoderID)
+    }
+
+    private var modelCachePath: String {
+        HuggingFaceCacheConfiguration.effectiveDirectory()
+    }
+
+    private var modelCacheDescription: String {
+        let path = huggingFaceCacheDirectory.isEmpty ? "~/.cache/huggingface" : modelCachePath
+        return "\(path)/hub"
+    }
+
+    private var modelCacheExists: Bool {
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: modelCachePath, isDirectory: &isDirectory)
+            && isDirectory.boolValue
     }
 
     private var appVersionText: String {
@@ -240,7 +256,7 @@ struct PreferencesView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(selectedModel.displayName)
                                 .font(.caption.bold())
-                            Text("Uses \(selectedModel.repo) (\(selectedModel.downloadSize) download). Model cached in ~/.cache/huggingface/")
+                            Text("Uses \(selectedModel.repo) (\(selectedModel.downloadSize) download). Model cache: \(modelCacheDescription)")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -324,6 +340,33 @@ struct PreferencesView: View {
                     Text("Leave empty to use default location in Application Support")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+
+                    HStack {
+                        TextField("Model Cache Directory", text: $huggingFaceCacheDirectory)
+                            .textFieldStyle(.roundedBorder)
+
+                        Button("Browse...") {
+                            selectModelCacheDirectory()
+                        }
+
+                        Button("Open") {
+                            openModelCacheDirectory()
+                        }
+                        .disabled(!modelCacheExists)
+                    }
+
+                    HStack {
+                        Text("Leave empty to use ~/.cache/huggingface. Choose a mounted external-drive folder to store downloaded models. Existing cache files are not moved automatically.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if !huggingFaceCacheDirectory.isEmpty {
+                            Button("Use Default") {
+                                huggingFaceCacheDirectory = ""
+                            }
+                            .controlSize(.small)
+                        }
+                    }
                 }
 
                 Section("Reset") {
@@ -539,7 +582,29 @@ struct PreferencesView: View {
             outputDirectory = url.path
         }
     }
-    
+
+    private func selectModelCacheDirectory() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.message = "Select a folder for Hugging Face model downloads"
+        panel.prompt = "Select"
+
+        if modelCacheExists {
+            panel.directoryURL = URL(fileURLWithPath: modelCachePath, isDirectory: true)
+        }
+
+        if panel.runModal() == .OK, let url = panel.url {
+            huggingFaceCacheDirectory = url.path
+        }
+    }
+
+    private func openModelCacheDirectory() {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: modelCachePath)
+    }
+
     private func openOutputDirectory() {
         let path = outputDirectory.isEmpty
             ? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!

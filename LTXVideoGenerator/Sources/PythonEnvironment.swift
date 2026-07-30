@@ -1,5 +1,60 @@
 import Foundation
 
+enum HuggingFaceCacheConfiguration {
+    static let directoryKey = "huggingFaceCacheDirectory"
+
+    static func configuredDirectory(userDefaults: UserDefaults = .standard) -> String? {
+        guard let rawPath = userDefaults.string(forKey: directoryKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !rawPath.isEmpty
+        else {
+            return nil
+        }
+
+        return NSString(string: rawPath).expandingTildeInPath
+    }
+
+    static func effectiveDirectory(userDefaults: UserDefaults = .standard) -> String {
+        configuredDirectory(userDefaults: userDefaults)
+            ?? FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".cache/huggingface", isDirectory: true)
+                .path
+    }
+
+    static func apply(
+        to environment: inout [String: String],
+        userDefaults: UserDefaults = .standard
+    ) {
+        guard let directory = configuredDirectory(userDefaults: userDefaults) else {
+            return
+        }
+
+        environment["HF_HOME"] = directory
+        environment["HF_HUB_CACHE"] = URL(fileURLWithPath: directory, isDirectory: true)
+            .appendingPathComponent("hub", isDirectory: true)
+            .path
+    }
+
+    static func availabilityError(userDefaults: UserDefaults = .standard) -> String? {
+        guard let directory = configuredDirectory(userDefaults: userDefaults) else {
+            return nil
+        }
+
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: directory, isDirectory: &isDirectory),
+              isDirectory.boolValue
+        else {
+            return "Configured model cache is unavailable: \(directory). Mount the external drive or choose another folder in Preferences → General → Storage."
+        }
+
+        guard FileManager.default.isWritableFile(atPath: directory) else {
+            return "Configured model cache is not writable: \(directory). Choose a writable folder in Preferences → General → Storage."
+        }
+
+        return nil
+    }
+}
+
 /// Details about a validated Python installation
 struct PythonDetails {
     let version: String
