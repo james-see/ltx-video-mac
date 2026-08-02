@@ -81,6 +81,33 @@ Progress is shown in the app during download.
 4. Watch progress in the Queue sidebar
 5. Find completed videos in your configured output directory (default: Application Support)
 
+### Local REST API
+
+Enable **API Server** in the app sidebar. The server listens only on `127.0.0.1:8420`.
+
+Image-to-video requests use an absolute path to a readable local image:
+
+```bash
+curl -X POST http://127.0.0.1:8420/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prompt": "The camera slowly pushes forward as banners move in the wind",
+    "source_image_path": "/absolute/path/to/source.png",
+    "model_id": "ltx23_unified",
+    "parameters": {
+      "width": 1536,
+      "height": 576,
+      "num_frames": 125,
+      "fps": 24,
+      "num_inference_steps": 30,
+      "guidance_scale": 3.0,
+      "image_strength": 1.0
+    }
+  }'
+```
+
+Omit `source_image_path` for text-to-video generation. The source image path is resolved and validated before the request is queued.
+
 ### Gemma Prompt Enhancement
 
 When enabled in **Settings > Generation**, Gemma rewrites your prompt before generation—expanding short descriptions into detailed, LTX-2–optimized prompts with visuals, audio, camera movement, and style. Use the **Preview enhanced prompt** button to see the rewritten prompt before generating.

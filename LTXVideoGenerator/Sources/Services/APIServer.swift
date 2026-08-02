@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import UniformTypeIdentifiers
 
 @MainActor
 class APIServer: ObservableObject {
@@ -21,8 +22,11 @@ class APIServer: ObservableObject {
         do {
             let params = NWParameters.tcp
             params.allowLocalEndpointReuse = true
-            
-            listener = try NWListener(using: params, on: NWEndpoint.Port(rawValue: port)!)
+            let endpointPort = NWEndpoint.Port(rawValue: port)!
+            params.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: endpointPort)
+
+            // The API accepts local file paths, so it must not be exposed to the LAN.
+            listener = try NWListener(using: params)
             
             listener?.stateUpdateHandler = { [weak self] state in
                 Task { @MainActor in
@@ -118,11 +122,11 @@ class APIServer: ObservableObject {
         case ("GET", "/"):
             sendResponse(connection, status: 200, body: [
                 "service": "LTX Video Generator",
-                "version": "1.0.5",
+                "version": Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown",
                 "endpoints": [
                     "GET /status": "Server and generation status",
                     "GET /queue": "Current generation queue",
-                    "POST /generate": "Submit generation request (optional model_id, text_encoder_id)",
+                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id)",
                     "DELETE /queue/:id": "Cancel a queued request"
                 ]
             ])
@@ -143,6 +147,8 @@ class APIServer: ObservableObject {
                 return [
                     "id": request.id.uuidString,
                     "prompt": request.prompt,
+                    "mode": request.isImageToVideo ? "image-to-video" : "text-to-video",
+                    "source_image_name": request.sourceImagePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? NSNull(),
                     "status": request.status.rawValue,
                     "created_at": ISO8601DateFormatter().string(from: request.createdAt),
                     "model": [
@@ -175,6 +181,11 @@ class APIServer: ObservableObject {
             }
             
             let negativePrompt = body["negative_prompt"] as? String ?? ""
+            let sourceImageValidation = validateSourceImagePath(body["source_image_path"])
+            if let validationError = sourceImageValidation.error {
+                sendResponse(connection, status: 400, body: ["error": validationError])
+                return
+            }
             let voiceoverText = body["voiceover_text"] as? String ?? ""
             let voiceoverSource = body["voiceover_source"] as? String ?? "mlx-audio"
             let voiceoverVoice = body["voiceover_voice"] as? String ?? "af_heart"
@@ -210,6 +221,14 @@ class APIServer: ObservableObject {
                 if let steps = p["num_inference_steps"] as? Int { params.numInferenceSteps = steps }
                 if let guidance = p["guidance_scale"] as? Double { params.guidanceScale = guidance }
                 if let seed = p["seed"] as? Int { params.seed = seed }
+                if let vaeTilingMode = p["vae_tiling_mode"] as? String { params.vaeTilingMode = vaeTilingMode }
+                if let imageStrength = p["image_strength"] as? Double {
+                    guard (0.0...1.0).contains(imageStrength) else {
+                        sendResponse(connection, status: 400, body: ["error": "parameters.image_strength must be between 0.0 and 1.0"])
+                        return
+                    }
+                    params.imageStrength = imageStrength
+                }
             }
             
             let request = GenerationRequest(
@@ -218,6 +237,7 @@ class APIServer: ObservableObject {
                 voiceoverText: voiceoverText,
                 voiceoverSource: voiceoverSource,
                 voiceoverVoice: voiceoverVoice,
+                sourceImagePath: sourceImageValidation.path,
                 musicEnabled: musicEnabled,
                 musicGenre: musicGenre,
                 modelId: resolvedModel.id,
@@ -229,6 +249,8 @@ class APIServer: ObservableObject {
             sendResponse(connection, status: 201, body: [
                 "id": request.id.uuidString,
                 "status": "queued",
+                "mode": request.isImageToVideo ? "image-to-video" : "text-to-video",
+                "source_image_name": request.sourceImagePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? NSNull(),
                 "model_id": request.modelId,
                 "model_repo": resolvedModel.repo,
                 "text_encoder_id": request.textEncoderId,
@@ -253,6 +275,39 @@ class APIServer: ObservableObject {
         default:
             sendResponse(connection, status: 404, body: ["error": "Not found"])
         }
+    }
+
+    /// Resolves and validates an optional local image path before it reaches the Python bridge.
+    private func validateSourceImagePath(_ value: Any?) -> (path: String?, error: String?) {
+        guard let value else { return (nil, nil) }
+        guard let rawPath = value as? String else {
+            return (nil, "source_image_path must be a string")
+        }
+
+        let trimmedPath = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPath.isEmpty else { return (nil, nil) }
+
+        let expandedPath = NSString(string: trimmedPath).expandingTildeInPath
+        guard expandedPath.hasPrefix("/") else {
+            return (nil, "source_image_path must be an absolute path")
+        }
+
+        let imageURL = URL(fileURLWithPath: expandedPath)
+            .standardizedFileURL
+            .resolvingSymlinksInPath()
+        var isDirectory: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: imageURL.path, isDirectory: &isDirectory),
+              !isDirectory.boolValue,
+              FileManager.default.isReadableFile(atPath: imageURL.path) else {
+            return (nil, "source_image_path does not point to a readable file")
+        }
+
+        guard let fileType = UTType(filenameExtension: imageURL.pathExtension),
+              fileType.conforms(to: .image) else {
+            return (nil, "source_image_path must point to a supported image file")
+        }
+
+        return (imageURL.path, nil)
     }
     
     private func sendResponse(_ connection: NWConnection, status: Int, body: [String: Any]) {
