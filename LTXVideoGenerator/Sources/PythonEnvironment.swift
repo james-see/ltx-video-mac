@@ -78,8 +78,8 @@ struct PythonDetails {
     }
 }
 
-/// Minimum mlx-video-with-audio version (fix Metal watchdog aborts during model warmup)
-private let mlxVideoMinVersion = "0.1.36"
+/// Minimum mlx-video-with-audio version (multi-image keyframe / first-last-frame I2V)
+private let mlxVideoMinVersion = "0.1.37"
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
