@@ -39,9 +39,9 @@ enum LTXModelCatalog {
             downloadSize: "~42GB",
             supportsBuiltInAudio: true,
             qualityWarning: nil,
-            recommendedStepsLower: 20,
-            recommendedStepsUpper: 40,
-            tips: nil
+            recommendedStepsLower: 11,
+            recommendedStepsUpper: 11,
+            tips: "Fixed 8 stage-1 + 3 stage-2 steps (11 total). The inference-steps slider is ignored."
         ),
         LTXModel(
             id: "ltx23_unified",
@@ -50,9 +50,9 @@ enum LTXModelCatalog {
             downloadSize: "~48GB",
             supportsBuiltInAudio: true,
             qualityWarning: nil,
-            recommendedStepsLower: 15,
-            recommendedStepsUpper: 30,
-            tips: "Distilled model — 15-30 steps is optimal. More steps won't improve quality."
+            recommendedStepsLower: 11,
+            recommendedStepsUpper: 11,
+            tips: "Distilled schedule is fixed at 8 stage-1 + 3 stage-2 steps (11 total). The inference-steps slider is ignored."
         ),
         LTXModel(
             id: "ltx23_distilled_q4",
@@ -61,9 +61,9 @@ enum LTXModelCatalog {
             downloadSize: "~22GB",
             supportsBuiltInAudio: true,
             qualityWarning: "Quantized: lower memory footprint with some quality tradeoffs versus bf16.",
-            recommendedStepsLower: 15,
-            recommendedStepsUpper: 30,
-            tips: "Distilled model — 15-30 steps is optimal. Uses ~30GB RAM vs ~50GB for bf16."
+            recommendedStepsLower: 11,
+            recommendedStepsUpper: 11,
+            tips: "Distilled schedule is fixed at 8 stage-1 + 3 stage-2 steps (11 total). The inference-steps slider is ignored. Uses ~30GB RAM vs ~50GB for bf16."
         ),
     ]
 

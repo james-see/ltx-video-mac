@@ -100,7 +100,9 @@ struct ParametersView: View {
                         HStack(spacing: 4) {
                             Image(systemName: "target")
                                 .foregroundStyle(.blue)
-                            Text("Recommended: \(range.lowerBound)–\(range.upperBound) steps")
+                            Text(range.lowerBound == range.upperBound
+                                ? "Fixed \(range.lowerBound) steps (8 + 3). Slider is ignored."
+                                : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }

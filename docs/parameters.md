@@ -114,7 +114,7 @@ Number of denoising steps per stage.
 |:--------|:------|:--------|
 | Steps | 8-50 | 28 |
 
-The LTX-2 Unified model uses a fixed sigma schedule. More steps provide diminishing returns after ~30.
+Current catalog models (LTX-2 Unified, LTX-2.3 Unified, LTX-2.3 Distilled Q4) use Lightricks' distilled sigma schedule: 8 stage-1 steps + 3 stage-2 steps (11 total). The inference-steps slider is ignored for these models. A future full/SFT catalog entry can use a real step range.
 
 ### Guidance Scale
 
