@@ -60,11 +60,32 @@ Default: review, thank the author by name, then merge or close with a concrete r
 
 Keep a Changelog + semver. User-facing behavior goes in `CHANGELOG.md` under Unreleased until the version tag. Mention Settings paths and min package versions when they change. README / `docs/installation.md` for storage and API examples.
 
+## Commit style
+
+Subject only. One line. Imperative. Why, not a file list. No body unless the user asks. No trailers, no `Co-authored-by`.
+
+```
+Add AGENTS.md with release, PR, and library-pin workflow
+Require mlx-video-with-audio 0.1.37 for keyframe I2V
+Fix #75: pause/cleanup video player on view disappear
+Add higher resolution options + warning (#68)
+```
+
+Fixed phrases — do not invent variants:
+
+| Case | Message |
+|---|---|
+| App version tag | `Bump version to X.Y.Z, update CHANGELOG` |
+| Library version | `v0.1.37: short why` |
+| `gh pr merge --merge` | leave GitHub’s `Merge pull request #N from …` |
+
+Optional `feat:` / `fix:` / `docs:` / `chore:` is fine on contributor PRs; maintainer commits on `main` prefer the sentence form above. Pass the message via HEREDOC. Never `--amend` unless the user asked and the last commit is yours and unpushed.
+
+Do not commit unless the user asks, except when they already asked to cut a release or land the version pin as part of that task.
+
 ## Git / `gh` / permissions
 
 `gh` and `git` are allowlisted. Run them without `required_permissions` or smart-mode prompts unless a command actually fails. Never `git config`, never `--no-verify`, never force-push `main`. No commit trailers / Co-authored-by.
-
-Do not commit unless the user asks, except when they already asked to cut a release or land the version pin as part of that task.
 
 ## Debug first
 
