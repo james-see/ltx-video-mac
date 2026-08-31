@@ -306,13 +306,27 @@ struct PromptInputView: View {
                         .buttonStyle(.bordered)
                     }
                     
-                    Text("Select an image to use as the first frame. Your prompt should describe the motion/action.")
+                    Text("Select an image to anchor the first or last frame. Your prompt should describe the motion/action.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     
                     if sourceImagePath != nil {
                         Divider()
-                        
+
+                        Picker("Use image as", selection: $parameters.imageFramePosition) {
+                            Text("First frame").tag("first")
+                            Text("Last frame").tag("last")
+                        }
+                        .pickerStyle(.segmented)
+
+                        Text(parameters.imageFramePosition == "last"
+                            ? "The image becomes the final frame. Your prompt should describe the motion/action leading up to it."
+                            : "The image becomes the first frame. Your prompt should describe the motion/action.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        Divider()
+
                         ParameterSlider(
                             title: "Image Strength",
                             value: $parameters.imageStrength,
@@ -321,9 +335,84 @@ struct PromptInputView: View {
                             icon: "photo.fill",
                             format: "%.2f"
                         )
-                        
-                        Text("How strongly the source image influences generation. 1.0 = exact first frame, lower = more creative freedom.")
+
+                        Text("How strongly the source image influences generation. 1.0 = exact match, lower = more creative freedom.")
                             .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Divider()
+
+                    HStack {
+                        Label("Additional Keyframes", systemImage: "rectangle.stack.badge.plus")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            addKeyframe()
+                        } label: {
+                            Label("Add", systemImage: "plus")
+                                .font(.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+
+                    if parameters.keyframes.isEmpty {
+                        Text("Pin extra images anywhere on the timeline (e.g. a mid-point pose). Each image is held at its position — keep them visually consistent or the motion will jump.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach($parameters.keyframes) { $kf in
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Image(systemName: "photo")
+                                        .foregroundStyle(.secondary)
+                                    Text(URL(fileURLWithPath: kf.imagePath).lastPathComponent)
+                                        .font(.caption)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Spacer()
+                                    Button(role: .destructive) {
+                                        parameters.keyframes.removeAll { $0.id == kf.id }
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                    }
+                                    .buttonStyle(.plain)
+                                    .foregroundStyle(.red)
+                                }
+
+                                HStack {
+                                    Text("Position")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 58, alignment: .leading)
+                                    Slider(value: $kf.position, in: 0...1, step: 0.05)
+                                    Text("\(Int((kf.position * 100).rounded()))%")
+                                        .font(.caption2.monospacedDigit())
+                                        .frame(width: 42, alignment: .trailing)
+                                }
+
+                                HStack {
+                                    Text("Strength")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 58, alignment: .leading)
+                                    Slider(value: $kf.strength, in: 0...1, step: 0.05)
+                                    Text(String(format: "%.2f", kf.strength))
+                                        .font(.caption2.monospacedDigit())
+                                        .frame(width: 42, alignment: .trailing)
+                                }
+                            }
+                            .padding(8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color(nsColor: .controlBackgroundColor))
+                            )
+                        }
+
+                        Text("Position: 0% = first frame, 100% = last frame. There are only ~\(max(1, 1 + (parameters.numFrames - 1) / 8)) distinct latent slots, so nearby positions may land on the same frame.")
+                            .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
                 }
@@ -834,8 +923,12 @@ struct PromptInputView: View {
     }
     
     private func generateBatch(count: Int) {
-        let requests = (0..<count).map { _ in
-            GenerationRequest(
+        let requests = (0..<count).map { _ -> GenerationRequest in
+            // Copy the full parameter set (preserving frame position, keyframes,
+            // tiling, etc.) and only randomize the seed per batch item.
+            var perItemParameters = parameters
+            perItemParameters.seed = Int.random(in: 0..<Int(Int32.max))
+            return GenerationRequest(
                 prompt: prompt,
                 negativePrompt: negativePrompt,
                 voiceoverText: voiceoverText,
@@ -849,17 +942,7 @@ struct PromptInputView: View {
                 gemmaTopP: gemmaTopP,
                 modelId: selectedModelID,
                 textEncoderId: selectedTextEncoderID,
-                parameters: GenerationParameters(
-                    numInferenceSteps: parameters.numInferenceSteps,
-                    guidanceScale: parameters.guidanceScale,
-                    width: parameters.width,
-                    height: parameters.height,
-                    numFrames: parameters.numFrames,
-                    fps: parameters.fps,
-                    seed: Int.random(in: 0..<Int(Int32.max)),
-                    vaeTilingMode: parameters.vaeTilingMode,
-                    imageStrength: parameters.imageStrength
-                )
+                parameters: perItemParameters
             )
         }
         generationService.addBatch(requests)
@@ -905,6 +988,25 @@ struct PromptInputView: View {
         }
     }
     
+    private func addKeyframe() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.image, .png, .jpeg, .webP]
+        panel.message = "Select keyframe image(s) to pin along the timeline"
+        panel.prompt = "Add"
+
+        if panel.runModal() == .OK {
+            for url in panel.urls {
+                parameters.keyframes.append(
+                    Keyframe(imagePath: url.path, position: 1.0, strength: 1.0)
+                )
+            }
+            showImageToVideo = true
+        }
+    }
+
     private func loadThumbnail(from url: URL) {
         if let image = NSImage(contentsOf: url) {
             // Create a smaller thumbnail for display

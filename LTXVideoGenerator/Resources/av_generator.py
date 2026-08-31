@@ -127,6 +127,26 @@ def main():
         help="Image conditioning strength (0.0-1.0)",
     )
     parser.add_argument(
+        "--image-frame-idx",
+        type=int,
+        default=0,
+        help=(
+            "Latent frame index to anchor the conditioning image "
+            "(0 = first frame; last frame = (num_frames - 1) // 8)"
+        ),
+    )
+    parser.add_argument(
+        "--keyframe",
+        action="append",
+        default=None,
+        metavar="PATH|FRAME_IDX|STRENGTH",
+        help=(
+            "Add a conditioning keyframe (repeatable). Format: "
+            "PATH|FRAME_IDX|STRENGTH (STRENGTH optional, default 1.0). "
+            "Takes precedence over --image for multi-image conditioning."
+        ),
+    )
+    parser.add_argument(
         "--tiling",
         type=str,
         default="auto",
@@ -150,12 +170,25 @@ def main():
 
     args = parser.parse_args()
 
+    # Parse repeatable --keyframe PATH|FRAME_IDX|STRENGTH specs into dicts.
+    keyframes = None
+    if args.keyframe:
+        keyframes = []
+        for spec in args.keyframe:
+            parts = spec.split("|")
+            path = parts[0]
+            frame_idx = int(parts[1]) if len(parts) > 1 and parts[1] != "" else 0
+            strength = float(parts[2]) if len(parts) > 2 and parts[2] != "" else 1.0
+            keyframes.append(
+                {"path": path, "frame_idx": frame_idx, "strength": strength}
+            )
+
     try:
         status_output("Loading unified audio-video model...")
 
         from mlx_video.generate_av import generate_video_with_audio
 
-        is_i2v = args.image is not None
+        is_i2v = args.image is not None or bool(keyframes)
         mode_str = "I2V" if is_i2v else "T2V"
         status_output(
             "Starting "
@@ -177,6 +210,8 @@ def main():
             cfg_scale=args.cfg_scale,
             image=args.image,
             image_strength=args.image_strength,
+            image_frame_idx=args.image_frame_idx,
+            keyframes=keyframes,
             tiling=args.tiling,
             num_inference_steps=args.num_inference_steps,
             verbose=True,

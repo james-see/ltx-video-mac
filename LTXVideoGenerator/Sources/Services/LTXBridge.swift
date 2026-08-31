@@ -270,11 +270,30 @@ class LTXBridge {
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
         
-        // Escape source image path if provided
-        let escapedImagePath = request.sourceImagePath?
-            .replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"") ?? ""
-        
+        // Build conditioning keyframes (primary source image + extra keyframes).
+        // Each is encoded as "path|latentFrameIdx|strength"; "|" never appears in
+        // macOS file paths so it is a safe delimiter for the library CLI.
+        let latentFrameCount = 1 + (params.numFrames - 1) / 8
+        let lastLatentIdx = max(0, latentFrameCount - 1)
+        func latentIndex(forFraction f: Double) -> Int {
+            let idx = Int((f * Double(lastLatentIdx)).rounded())
+            return min(max(idx, 0), lastLatentIdx)
+        }
+        func pyEscape(_ s: String) -> String {
+            s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+        }
+        var keyframeSpecs: [String] = []
+        if let primary = request.sourceImagePath, !primary.isEmpty {
+            let idx = request.parameters.imageFramePosition == "last" ? lastLatentIdx : 0
+            keyframeSpecs.append("\(pyEscape(primary))|\(idx)|\(params.imageStrength)")
+        }
+        for kf in params.keyframes where !kf.imagePath.isEmpty {
+            let idx = latentIndex(forFraction: kf.position)
+            keyframeSpecs.append("\(pyEscape(kf.imagePath))|\(idx)|\(kf.strength)")
+        }
+        let keyframesPyList = "[" + keyframeSpecs.map { "\"\($0)\"" }.joined(separator: ", ") + "]"
+
         // Log file path
         let logFile = "/tmp/ltx_generation.log"
         
@@ -373,9 +392,9 @@ try:
                 "Preferences: enable 'Use local mlx-video-with-audio repo' or set LTX_FORCE_LOCAL_MLX_VIDEO=1 to override."
             )
 
-    # Image-to-video mode
-    source_image_path = "\(escapedImagePath)" if "\(escapedImagePath)" else None
-    mode = "image-to-video" if source_image_path else "text-to-video"
+    # Conditioning keyframes (primary source image + any extra keyframes)
+    keyframe_specs = \(keyframesPyList)
+    mode = "image-to-video" if keyframe_specs else "text-to-video"
     
     prompt = '''\(escapedPrompt)'''
     negative_prompt = '''\(escapedNegativePrompt)'''
@@ -408,11 +427,12 @@ try:
     else:
         log(f"Mode: {mode} (with audio)")
     
-    # Add image conditioning if provided
-    if source_image_path:
-        cmd.extend(["--image", source_image_path])
-        cmd.extend(["--image-strength", str(\(params.imageStrength))])
-        log(f"Image conditioning: {source_image_path}")
+    # Add conditioning keyframes if provided (path|latent_frame_idx|strength).
+    # latent_frame_idx is already computed app-side from each keyframe's timeline
+    # position and the frame count.
+    for spec in keyframe_specs:
+        cmd.extend(["--keyframe", spec])
+        log(f"Keyframe: {spec}")
     
     if (not disable_audio) and \(saveAudioTrackSeparately ? "True" : "False"):
         cmd.append("--save-audio-separately")

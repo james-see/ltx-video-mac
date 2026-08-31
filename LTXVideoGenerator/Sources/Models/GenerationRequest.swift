@@ -292,6 +292,16 @@ enum GenerationStatus: String, Codable, Equatable {
     case cancelled
 }
 
+/// A single conditioning image pinned to a position along the video timeline.
+/// `position` is a fraction 0.0...1.0 (0 = first frame, 1 = last frame); the
+/// generation bridge maps it to a latent frame index based on `numFrames`.
+struct Keyframe: Codable, Equatable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var imagePath: String
+    var position: Double = 1.0
+    var strength: Double = 1.0
+}
+
 struct GenerationParameters: Codable, Equatable, Hashable {
     var numInferenceSteps: Int
     var guidanceScale: Double
@@ -302,7 +312,13 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     var seed: Int?
     var vaeTilingMode: String
     var imageStrength: Double
-    
+    /// Which frame the source image anchors: "first" (default) or "last".
+    /// Only meaningful for image-to-video generation.
+    var imageFramePosition: String = "first"
+    /// Additional conditioning keyframes beyond the primary source image.
+    /// Each pins an image to a position along the timeline.
+    var keyframes: [Keyframe] = []
+
     // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
         numInferenceSteps: 30,
@@ -375,5 +391,25 @@ struct GenerationParameters: Codable, Equatable, Hashable {
         let baseVRAM = 20.0 + Double(numFrames) * 0.2
         let resolutionScale = Double(width * height) / (768.0 * 512.0)
         return Int(baseVRAM * resolutionScale)
+    }
+}
+
+extension GenerationParameters {
+    // Custom decoder so older saved presets/history/profiles (which predate
+    // `imageFramePosition`) still decode. Declared in an extension to preserve
+    // the synthesized memberwise initializer used throughout the app.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        numInferenceSteps = try c.decode(Int.self, forKey: .numInferenceSteps)
+        guidanceScale = try c.decode(Double.self, forKey: .guidanceScale)
+        width = try c.decode(Int.self, forKey: .width)
+        height = try c.decode(Int.self, forKey: .height)
+        numFrames = try c.decode(Int.self, forKey: .numFrames)
+        fps = try c.decode(Int.self, forKey: .fps)
+        seed = try c.decodeIfPresent(Int.self, forKey: .seed)
+        vaeTilingMode = try c.decode(String.self, forKey: .vaeTilingMode)
+        imageStrength = try c.decode(Double.self, forKey: .imageStrength)
+        imageFramePosition = try c.decodeIfPresent(String.self, forKey: .imageFramePosition) ?? "first"
+        keyframes = try c.decodeIfPresent([Keyframe].self, forKey: .keyframes) ?? []
     }
 }
