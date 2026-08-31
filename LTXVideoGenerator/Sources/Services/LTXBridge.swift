@@ -23,6 +23,38 @@ enum LTXError: LocalizedError, Equatable {
     }
 }
 
+/// Thread-safe holder so a Task-cancellation handler can terminate the running
+/// generation subprocess even though it is created on a background dispatch queue.
+private final class CancellableProcessHolder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var process: Process?
+    private var cancelledFlag = false
+
+    /// Store the process. Returns false if cancellation already happened, in
+    /// which case the caller should not start the process.
+    func storeIfNotCancelled(_ p: Process) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if cancelledFlag { return false }
+        process = p
+        return true
+    }
+
+    /// Mark cancelled and terminate the process (SIGTERM). The Python wrapper's
+    /// signal handler forwards SIGKILL to the whole child process group.
+    func cancel() {
+        lock.lock()
+        cancelledFlag = true
+        let p = process
+        lock.unlock()
+        p?.terminate()
+    }
+
+    var wasCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return cancelledFlag
+    }
+}
+
 // Use subprocess to run MLX-based generation
 class LTXBridge {
     static let shared = LTXBridge()
@@ -394,14 +426,33 @@ try:
     if use_local_mlx_video_repo:
         child_env["PYTHONPATH"] = local_mlx_video_repo
     
-    # Run the CLI module and stream combined output (binary read so we see tqdm \\r updates)
+    # Run the CLI module and stream combined output (binary read so we see tqdm \\r updates).
+    # start_new_session=True puts the child (and anything it spawns) in its own
+    # process group so we can terminate the whole tree atomically on cancel.
     process = subprocess.Popen(
         cmd,
         env=child_env,
         stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
     )
-    
+
+    # When the app cancels generation it sends this wrapper SIGTERM. Forward that
+    # to the entire child process group (SIGKILL) so the heavy mlx_video process
+    # actually dies instead of being orphaned and holding the GPU/memory.
+    def _terminate_child(signum, frame):
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        os._exit(1)
+
+    signal.signal(signal.SIGTERM, _terminate_child)
+    signal.signal(signal.SIGINT, _terminate_child)
+
     # Unbuffered read: use os.read() on the raw fd so every line the inner process
     # flushes is available immediately.  process.stdout.read(n) uses Python's
     # BufferedReader which blocks until n bytes accumulate, starving the progress loop.
@@ -896,8 +947,11 @@ except Exception as e:
         }
         
         let logFile = "/tmp/ltx_generation.log"
-        
-        return try await withCheckedThrowingContinuation { continuation in
+
+        let holder = CancellableProcessHolder()
+
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: python)
@@ -951,12 +1005,25 @@ except Exception as e:
                     }
                 }
                 
+                // If the task was cancelled before we could start, abort now.
+                guard holder.storeIfNotCancelled(process) else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+
                 do {
                     let startLog = "=== LTX MLX Process Started ===\nPython: \(python)\nTime: \(Date())\n"
                     try? startLog.write(toFile: logFile, atomically: false, encoding: .utf8)
-                    
+
                     try process.run()
                     process.waitUntilExit()
+
+                    // User-initiated cancel: surface as cancellation, not a failure.
+                    if holder.wasCancelled {
+                        stderrPipe.fileHandleForReading.readabilityHandler = nil
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
                     
                     stderrPipe.fileHandleForReading.readabilityHandler = nil
                     
@@ -1028,6 +1095,9 @@ except Exception as e:
                     continuation.resume(throwing: LTXError.generationFailed(error.localizedDescription))
                 }
             }
+            }
+        } onCancel: {
+            holder.cancel()
         }
     }
 }

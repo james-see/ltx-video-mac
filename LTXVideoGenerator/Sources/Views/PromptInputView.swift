@@ -105,6 +105,12 @@ struct PromptInputView: View {
     private var generationActionsDisabled: Bool {
         prompt.isEmpty || generationService.isProcessing || generationService.currentRequest != nil
     }
+
+    /// Enqueueing more clips is allowed even while one is generating — the queue
+    /// processes sequentially, so only an empty prompt should block it.
+    private var addToQueueDisabled: Bool {
+        prompt.isEmpty
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -623,7 +629,7 @@ struct PromptInputView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.large)
-                .disabled(generationActionsDisabled)
+                .disabled(addToQueueDisabled)
                 
                 // Batch button
                 Menu {
@@ -643,7 +649,7 @@ struct PromptInputView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 44)
-                .disabled(generationActionsDisabled)
+                .disabled(addToQueueDisabled)
             }
 
             if !disableAudio && parameters.fps != 24 {

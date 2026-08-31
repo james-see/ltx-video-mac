@@ -300,8 +300,10 @@ class GenerationService: ObservableObject {
             statusMessage = "Video saved to \(outputDir)"
             
         } catch is CancellationError {
+            // User-initiated cancel — stop quietly, no error popup.
             queue[index].status = .cancelled
-            error = .cancelled
+        } catch let err as LTXError where err == .cancelled {
+            queue[index].status = .cancelled
         } catch let err as LTXError {
             queue[index].status = .failed
             error = err

@@ -16,6 +16,17 @@ struct ContentView: View {
     @State private var parameters: GenerationParameters = SessionSettings.loadParameters()
     @State private var showError = false
 
+    /// Keep the error alert small enough that the OK button stays on screen.
+    /// Generation failures can carry thousands of characters of Python traceback,
+    /// which previously pushed the button below the bottom of the display. The
+    /// full detail is always written to /tmp/ltx_generation.log.
+    static func boundedAlertMessage(_ message: String) -> String {
+        let limit = 500
+        guard message.count > limit else { return message }
+        let head = message.prefix(limit).trimmingCharacters(in: .whitespacesAndNewlines)
+        return head + "…\n\n(Message truncated — full details in /tmp/ltx_generation.log)"
+    }
+
     enum Tab: String, CaseIterable {
         case generate = "Generate"
         case history = "Video Archive"
@@ -42,7 +53,7 @@ struct ContentView: View {
                 generationService.clearError()
             }
         } message: { error in
-            Text(error.localizedDescription)
+            Text(Self.boundedAlertMessage(error.localizedDescription))
         }
         .onChange(of: generationService.error) { _, newError in
             showError = newError != nil
