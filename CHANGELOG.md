@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.68] - 2026-08-31
+
 ### Fixed
 - **Issue #78 — Distilled step-count copy** — Parameters sidebar no longer claims 15–30 steps is optimal for distilled/unified models. Those checkpoints use a fixed 8 + 3 schedule (11 total); the inference-steps slider is ignored.
 
