@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **REST API image-to-video** — `POST /generate` now accepts an optional absolute `source_image_path`, validates that it is a readable image, and forwards it to the existing image-to-video generation pipeline. `parameters.image_strength` and `parameters.vae_tiling_mode` are also accepted.
+- Queue and submission responses now identify `text-to-video` versus `image-to-video` jobs and return the source image filename.
+
+### Security
+- Bind the local REST API to `127.0.0.1` because image-to-video requests can reference files on the Mac.
+
 ## [2.3.66] - 2026-07-27
 
 ### Added
