@@ -899,7 +899,11 @@ except Exception as e:
         arguments: [String],
         timeout: TimeInterval = 60
     ) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
+        if let cacheError = HuggingFaceCacheConfiguration.availabilityError() {
+            throw LTXError.generationFailed(cacheError)
+        }
+
+        return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: executable)
@@ -910,6 +914,7 @@ except Exception as e:
                 env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
                 env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
                 env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
+                HuggingFaceCacheConfiguration.apply(to: &env)
                 process.environment = env
                 let stdoutPipe = Pipe()
                 let stderrPipe = Pipe()
@@ -945,6 +950,10 @@ except Exception as e:
         guard let python = pythonExecutable else {
             throw LTXError.pythonNotConfigured
         }
+
+        if let cacheError = HuggingFaceCacheConfiguration.availabilityError() {
+            throw LTXError.generationFailed(cacheError)
+        }
         
         let logFile = "/tmp/ltx_generation.log"
 
@@ -965,6 +974,7 @@ except Exception as e:
                 env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
                 env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
                 env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
+                HuggingFaceCacheConfiguration.apply(to: &env)
                 
                 // MLX uses Metal - inherit any Metal-related env vars
                 if let metalDevice = ProcessInfo.processInfo.environment["MTL_DEVICE_WRAPPER_TYPE"] {

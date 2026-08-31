@@ -96,6 +96,16 @@ Models are cached by Hugging Face in folders such as:
 ~/.cache/huggingface/hub/models--dgrauet--ltx-2.3-mlx-distilled-q4/
 ```
 
+To store new downloads on another disk:
+
+1. Open **Preferences > General > Storage**
+2. Set **Model Cache Directory** to a folder on the mounted disk
+3. Start generation after confirming the disk is still mounted
+
+The app passes the selected directory to Hugging Face through `HF_HOME` and stores Hub downloads in its `hub` subfolder. Existing cache files are not moved automatically. Copy them from `~/.cache/huggingface/` into the selected directory before removing the originals.
+
+If the selected folder is unavailable or not writable, generation stops with an error instead of silently downloading models to the internal disk.
+
 To free up space later, you can delete this folder (the model will re-download on next use).
 
 ## Optional: Gemma Prompt Enhancement

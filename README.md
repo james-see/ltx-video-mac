@@ -64,7 +64,7 @@ The `mlx-video-with-audio` package is available on [PyPI](https://pypi.org/proje
 
 **Important:** On first generation, the app downloads your selected model from Hugging Face. This is a one-time download that may take 15-30 minutes depending on model size and internet connection.
 
-The model is cached in `~/.cache/huggingface/` and will not be re-downloaded on subsequent runs.
+The model is cached in `~/.cache/huggingface/` by default and will not be re-downloaded on subsequent runs. To keep large model files on another disk, choose a **Model Cache Directory** under **Settings > General > Storage** before the first generation.
 
 Progress is shown in the app during download.
 

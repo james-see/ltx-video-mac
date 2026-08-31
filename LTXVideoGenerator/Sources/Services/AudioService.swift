@@ -1096,6 +1096,10 @@ class AudioService: ObservableObject {
         timeout: TimeInterval,
         stderrHandler: ((String) -> Void)? = nil
     ) async throws -> String {
+        if let cacheError = HuggingFaceCacheConfiguration.availabilityError() {
+            throw AudioError.mlxAudioFailed(cacheError)
+        }
+
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
@@ -1108,6 +1112,7 @@ class AudioService: ObservableObject {
                 env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
                 env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
                 env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
+                HuggingFaceCacheConfiguration.apply(to: &env)
                 process.environment = env
                 
                 let stdoutPipe = Pipe()
