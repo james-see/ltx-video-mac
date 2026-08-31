@@ -7,12 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
-### Changed
-- Require `mlx-video-with-audio>=0.1.37` for multi-image keyframe / first-last-frame I2V.
+## [2.3.67] - 2026-08-31
 
 ### Added
 - **REST API image-to-video** — `POST /generate` now accepts an optional absolute `source_image_path`, validates that it is a readable image, and forwards it to the existing image-to-video generation pipeline. `parameters.image_strength` and `parameters.vae_tiling_mode` are also accepted.
 - Queue and submission responses now identify `text-to-video` versus `image-to-video` jobs and return the source image filename.
+- **Configurable model cache directory** — Settings → General → Storage can point Hugging Face downloads at another disk via `HF_HOME` / `HF_HUB_CACHE`. Generation fails closed if the folder is missing or not writable.
+- **First/last frame and multi-image keyframes** — Pin extra images along the timeline; the primary source image can be first or last frame. Requires `mlx-video-with-audio>=0.1.37`.
+
+### Changed
+- Require `mlx-video-with-audio>=0.1.37` for multi-image keyframe / first-last-frame I2V.
+
+### Fixed
+- Add to Queue and batch enqueue stay usable while a generation is running (queue is already single-flight).
+- Cancel now terminates the Python process group instead of leaving it holding GPU/memory.
+- Generation error alerts are truncated so the OK button stays on screen; full detail remains in `/tmp/ltx_generation.log`.
 
 ### Security
 - Bind the local REST API to `127.0.0.1` because image-to-video requests can reference files on the Mac.
