@@ -5,19 +5,21 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/james-see/ltx-video-mac)](https://github.com/james-see/ltx-video-mac/releases)
 
-A beautiful, native macOS application for generating AI videos with synchronized audio from text prompts using the LTX-2 model, running natively on Apple Silicon with MLX.
+Native SwiftUI macOS app for local AI video on Apple Silicon. **v2.3.69** adds LTX-2.5 (`ltx-2-mlx`) and MiniMax H3 (`h3.c`) alongside existing LTX-2 / 2.3 generation via `mlx-video-with-audio`.
 
 ![screenshot](https://i.imgur.com/LfBhmJa.png)
 
 ## Features
 
+- **LTX-2, LTX-2.3, LTX-2.5, MiniMax H3** — 2.3 Distilled Q4 is the default; 2.5 via `ltx-2-mlx` (opt-in install); H3 via native `h3.c`
 - **Native macOS App** - Built with SwiftUI for a seamless Mac experience
-- **Apple Silicon Native** - Uses MLX framework for optimal performance on M-series chips
+- **Apple Silicon Native** - Uses MLX (and H3 Metal) for M-series chips
 - **Text-to-Video Generation** - Transform text prompts into video clips
-- **Image-to-Video** - Animate images into videos
-- **Built-in Audio Generation** - Available model variants generate synchronized audio with video automatically
+- **Image-to-Video** - Animate images; first/last frame and multi-image keyframes on the LTX path
+- **Built-in Audio Generation** - LTX AV models generate synchronized audio with video
 - **Voiceover Narration** - Add TTS voiceover using ElevenLabs (cloud) or MLX-Audio (local)
 - **Background Music** - Generate instrumental music with 54 genre presets via ElevenLabs Music API
+- **Local REST API** - `127.0.0.1:8420` for queued generate (`model_id` includes `ltx25_*` and `minimax_h3`)
 - **Auto Package Installer** - Missing Python packages are detected and can be installed with one click
 - **Generation Queue** - Queue multiple generations with real-time progress tracking
 - **History Management** - Browse, preview, and manage all your generated videos
@@ -249,21 +251,22 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
 - **Python Bridge**: Subprocess execution with progress streaming
 - **ML Framework**: [MLX](https://github.com/ml-explore/mlx) (Apple's machine learning framework)
 - **Models**:
-  - [LTX-2 Unified](https://huggingface.co/notapalindrome/ltx2-mlx-av) (~42GB, synchronized audio+video)
-  - [LTX-2.3 Unified Beta](https://huggingface.co/notapalindrome/ltx23-mlx-av) (~48GB, synchronized audio+video)
-  - [LTX-2.3 Distilled Q4 Beta](https://huggingface.co/notapalindrome/ltx23-mlx-av-q4) (~22GB, synchronized audio+video)
-- **Precision**: bfloat16
+  - [LTX-2 Unified](https://huggingface.co/notapalindrome/ltx2-mlx-av) (~42GB, `mlx-video-with-audio`)
+  - [LTX-2.3 Unified Beta](https://huggingface.co/notapalindrome/ltx23-mlx-av) (~48GB)
+  - [LTX-2.3 Distilled Q4](https://huggingface.co/notapalindrome/ltx23-mlx-av-q4) (~22GB, default)
+  - [LTX-2.5 Distilled](https://huggingface.co/mlx-community/ltx-2.5-mlx) (~100GB, `ltx-2-mlx` 0.15+, Gemma 4 bundled)
+  - [LTX-2.5 Distilled Q8 DiT](https://huggingface.co/mlx-community/ltx-2.5-mlx-ditq8) (same pack + DiT overlay)
+  - [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) (~144GB, native [h3.c](https://github.com/antirez/h3.c))
+- **Precision**: bfloat16 (LTX); H3 uses the official MiniMax checkpoint
 
 ### Architecture
 
-Generation uses a 2-stage pipeline:
-1. Stage 1: Generate at half resolution
-2. Stage 2: Upsample and refine to full resolution
+LTX-2 / 2.3 use a 2-stage pipeline (half-res then refine). LTX-2.5 distilled is a fixed 8-step pass. H3 runs `./h3` (24 fps, frames snap to `5+17n`). See [Architecture](docs/architecture.md).
 
 ## Troubleshooting
 
 ### "Model download stuck"
-The download progress updates every 1%. Download time depends on selected model size (~19.4GB or ~42GB). Be patient.
+The download progress updates every 1%. Size depends on the selected model (~22GB Q4 default, ~100GB LTX-2.5, ~144GB H3). Be patient.
 
 ### "Out of memory"
 - Reduce resolution (512x320 is fastest)
@@ -279,7 +282,7 @@ The download progress updates every 1%. Download time depends on selected model 
 - Then click "Auto Detect" in Preferences
 
 ### "LTX 2.3 conversion / LoRA compatibility"
-- This app supports multiple AV model repos, including `notapalindrome/ltx2-mlx-av`, `notapalindrome/ltx23-mlx-av`, and `notapalindrome/ltx23-mlx-av-q4`.
+- LTX-2 / 2.3 stay on `mlx-video-with-audio`. LTX-2.5 uses `dgrauet/ltx-2-mlx` (git, only when selected). H3 uses a local `h3` binary.
 - Converting additional upstream checkpoints can require package-level updates in `mlx-video-with-audio` before they run reliably here.
 - Standard LTX LoRA workflows are not guaranteed to transfer directly to the MLX-converted AV path without conversion tooling support.
 
@@ -289,8 +292,10 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- [Lightricks](https://www.lightricks.com/) for the LTX-2 model
-- [mlx-video-with-audio](https://pypi.org/project/mlx-video-with-audio/) for unified audio-video generation
+- [Lightricks](https://www.lightricks.com/) for LTX-2 / LTX-2.5
+- [mlx-video-with-audio](https://pypi.org/project/mlx-video-with-audio/) for LTX-2 / 2.3 unified AV
+- [dgrauet/ltx-2-mlx](https://github.com/dgrauet/ltx-2-mlx) for LTX-2.5
+- [antirez/h3.c](https://github.com/antirez/h3.c) and [MiniMax](https://huggingface.co/MiniMaxAI/MiniMax-H3) for H3
 - [MLX Community](https://huggingface.co/mlx-community) for the MLX-converted weights
 - [Blaizzy/mlx-video](https://github.com/Blaizzy/mlx-video) for the original MLX video generation code
 - [Hugging Face](https://huggingface.co/) for model hosting

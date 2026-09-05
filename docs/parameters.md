@@ -7,7 +7,7 @@ nav_order: 4
 # Parameters Reference
 {: .no_toc }
 
-Detailed explanation of all generation parameters for LTX-2.
+Detailed explanation of generation parameters for LTX-2 / 2.3, LTX-2.5, and MiniMax H3.
 {: .fs-6 .fw-300 }
 
 ## Table of contents
@@ -20,7 +20,7 @@ Detailed explanation of all generation parameters for LTX-2.
 
 ## Model
 
-The app supports multiple LTX-2 models running on MLX (Apple's machine learning framework). Select your model in Preferences.
+Select the model in Preferences. LTX-2 / 2.3 use `mlx-video-with-audio`. LTX-2.5 uses `ltx-2-mlx`. MiniMax H3 uses the native `h3` binary.
 
 | Model | Parameters | Size | Vocoder | Notes |
 |:------|:-----------|:-----|:--------|:------|
@@ -31,10 +31,7 @@ The app supports multiple LTX-2 models running on MLX (Apple's machine learning 
 | LTX-2.5 Distilled Q8 DiT | 22B (Q8 DiT) | ~100GB + ~21GB | BigVGAN | `--dit mlx-community/ltx-2.5-mlx-ditq8` |
 | MiniMax H3 (`MiniMaxAI/MiniMax-H3`) | 33B | ~144GB | H3 audio VAE | Native `h3.c`; 24 fps; frames snap to 5+17n |
 
-Both models use a 2-stage pipeline:
-1. **Stage 1:** Generate at half resolution
-2. **Stage 2:** Upsample and refine to full resolution
-3. **Audio:** Synchronized stereo audio generated alongside video (24kHz → 48kHz with bandwidth extension)
+LTX-2 / 2.3 use a 2-stage pipeline (half-res, then refine) with synchronized stereo audio. LTX-2.5 distilled is a fixed 8-step pass (CFG=1). H3 is 24 fps with frames snapped to `5+17n`.
 
 See [Architecture](architecture) for full technical details on how each model is loaded and decoded.
 
