@@ -1018,17 +1018,18 @@ try:
         "-H", str(\(genHeight)),
         "-W", str(\(genWidth)),
         "-f", str(\(params.numFrames)),
+        "--frame-rate", str(\(params.fps)),
         "-s", str(\(seed)),
         "-o", output_path,
     ]
     if dit_repo:
-        cmd.extend(["--dit", dit_repo])
-        log(f"DiT override: {dit_repo}")
+        # v0.15.2 generate has no --dit; keep the pack default transformer.
+        log(f"Skipping DiT override {dit_repo}: this ltx-2-mlx generate does not accept --dit")
     if image_path:
         cmd.extend(["--image", image_path])
         log(f"I2V image: {image_path}")
     if \(request.disableAudio ? "True" : "False"):
-        cmd.append("--no-audio")
+        log("Generate Audio off is ignored on ltx-2-mlx 0.15.2 (no --no-audio flag)")
     if \(enableEnhance ? "True" : "False"):
         cmd.append("--enhance-prompt")
     if \(useLowRam ? "True" : "False"):
