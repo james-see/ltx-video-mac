@@ -626,7 +626,8 @@ class PythonEnvironment {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: basePython)
         process.arguments = ["-m", "venv", venvPath]
-        
+        process.environment = pythonSubprocessEnvironment(executable: basePython)
+
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
         process.standardOutput = stdoutPipe
@@ -817,29 +818,28 @@ class PythonEnvironment {
     // MARK: - Package Installation
     
     /// Install missing packages using pip
+    /// App process may have PYTHONHOME=venv prefix (configureForPythonKit uses sys.prefix).
+    /// That breaks a venv interpreter: stdlib lives in base_prefix (`No module named 'encodings'`).
+    private func pythonSubprocessEnvironment(executable: String) -> [String: String] {
+        var env = ProcessInfo.processInfo.environment
+        for key in ["PYTHONHOME", "PYTHONPATH", "PYTHON_LIBRARY", "PYTHONSTARTUP", "PYTHONEXECUTABLE"] {
+            env.removeValue(forKey: key)
+        }
+        let pythonBin = URL(fileURLWithPath: executable).deletingLastPathComponent().path
+        env["PATH"] = "\(pythonBin):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        HuggingFaceCacheConfiguration.apply(to: &env)
+        return env
+    }
+
     func installPackages(pythonExecutable: String, packages: [String], upgrade: Bool = false) async -> (success: Bool, message: String) {
-        let pipPath = pythonExecutable.replacingOccurrences(of: "/python3", with: "/pip3")
-            .replacingOccurrences(of: "/python", with: "/pip")
-
-        let usePipModule = !FileManager.default.isExecutableFile(atPath: pipPath)
-
-        var installArgs = ["install"]
+        var installArgs = ["-m", "pip", "install"]
         if upgrade { installArgs.append("-U") }
         installArgs.append(contentsOf: packages)
 
         let process = Process()
-        if usePipModule {
-            process.executableURL = URL(fileURLWithPath: pythonExecutable)
-            process.arguments = ["-m", "pip"] + installArgs
-        } else {
-            process.executableURL = URL(fileURLWithPath: pipPath)
-            process.arguments = installArgs
-        }
-        
-        var env = ProcessInfo.processInfo.environment
-        let pythonBin = URL(fileURLWithPath: pythonExecutable).deletingLastPathComponent().path
-        env["PATH"] = "\(pythonBin):/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin:" + (env["PATH"] ?? "")
-        process.environment = env
+        process.executableURL = URL(fileURLWithPath: pythonExecutable)
+        process.arguments = installArgs
+        process.environment = pythonSubprocessEnvironment(executable: pythonExecutable)
         
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
@@ -875,12 +875,17 @@ class PythonEnvironment {
         }
         
         setenv("PYTHON_LIBRARY", dylibPath, 1)
-        setenv("PYTHONHOME", details.pythonHome, 1)
-        
-        // Detect Python version for paths
+        // Venv sys.prefix is not a valid PYTHONHOME (no encodings). Use base_prefix.
+        let basePrefix = runPythonSync(
+            executable: details.executablePath,
+            script: "import sys; print(sys.base_prefix)"
+        )?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pythonHome = (basePrefix?.isEmpty == false) ? basePrefix! : details.pythonHome
+        setenv("PYTHONHOME", pythonHome, 1)
+
         let version = extractPythonVersion(from: dylibPath) ?? "3.11"
         let sitePackages = "\(details.pythonHome)/lib/python\(version)/site-packages"
-        let libPath = "\(details.pythonHome)/lib/python\(version)"
+        let libPath = "\(pythonHome)/lib/python\(version)"
         let pythonPathEnv = "\(sitePackages):\(libPath)"
         setenv("PYTHONPATH", pythonPathEnv, 1)
         
