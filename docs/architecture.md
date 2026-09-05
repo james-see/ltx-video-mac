@@ -20,7 +20,11 @@ Technical details of the generation pipeline and supported models.
 
 ## Overview
 
-LTX Video Generator is a native macOS SwiftUI application that shells out to a Python backend (`mlx-video-with-audio`) for the actual generation work. The Python library runs LTX-2 models on Apple Silicon using MLX.
+LTX Video Generator is a native macOS SwiftUI application that dispatches generation by `GenerationBackend`:
+
+- **mlxVideoWithAudio** — LTX-2 / 2.3 via `python -m mlx_video.generate_av`
+- **ltx2Mlx** — LTX-2.5 via `ltx-2-mlx generate` (dgrauet/ltx-2-mlx 0.15+)
+- **h3c** — MiniMax H3 via the native `h3` binary (antirez/h3.c)
 
 ```
 ┌──────────────────────────────┐
@@ -29,13 +33,10 @@ LTX Video Generator is a native macOS SwiftUI application that shells out to a P
 │  LTXBridge · PythonEnv       │
 └──────────┬───────────────────┘
            │ subprocess
-           ▼
-┌──────────────────────────────┐
-│  mlx-video-with-audio (Py)   │
-│  generate_av.py              │
-│  MLX transformer · VAE       │
-│  Vocoder · Text encoder      │
-└──────────────────────────────┘
+     ┌─────┼──────────────┐
+     ▼     ▼              ▼
+ mlx_video  ltx-2-mlx     h3
+ generate_av generate     (C/Metal)
 ```
 
 ### Swift Side
@@ -43,8 +44,9 @@ LTX Video Generator is a native macOS SwiftUI application that shells out to a P
 | Component | File | Role |
 |:----------|:-----|:-----|
 | `GenerationService` | `GenerationService.swift` | Manages the generation queue, spawns Python processes |
-| `LTXBridge` | `LTXBridge.swift` | Builds CLI args, manages `PYTHONPATH`, parses progress |
-| `PythonEnvironment` | `PythonEnvironment.swift` | Detects Python, validates packages, handles upgrades |
+| `LTXBridge` | `LTXBridge.swift` | Builds CLI args per backend, manages `PYTHONPATH`, parses progress |
+| `H3Engine` | `H3Engine.swift` | h3 binary/model discovery, frame/res snap, speed presets, license |
+| `PythonEnvironment` | `PythonEnvironment.swift` | Detects Python, validates packages, optional ltx-2-mlx git install |
 | `RootView` | `LTXVideoGeneratorApp.swift` | Launch-time Python validation and upgrade consent |
 
 ### Python Side
@@ -60,6 +62,27 @@ LTX Video Generator is a native macOS SwiftUI application that shells out to a P
 ---
 
 ## Supported Models
+
+### mlx-community/ltx-2.5-mlx (LTX-2.5 Distilled)
+
+| Property | Value |
+|:---------|:------|
+| Backend | `ltx2Mlx` (`ltx-2-mlx generate --distilled`) |
+| Download size | ~100GB pack (Gemma 4 bundled) |
+| Q8 DiT overlay | `mlx-community/ltx-2.5-mlx-ditq8` via `--dit` (`ltx25_distilled_ditq8`) |
+| Steps | Fixed 8, CFG=1 |
+| Text encoder | Gemma-4-unified inside the pack |
+| Install | Git (`dgrauet/ltx-2-mlx` @ v0.15.2) or `~/projects/ltx-2-mlx` + `uv run`. Not required for 2.3 users. |
+
+### MiniMaxAI/MiniMax-H3 (h3.c)
+
+| Property | Value |
+|:---------|:------|
+| Backend | `h3c` (direct `Process` to `./h3`) |
+| Download size | ~144GB snapshot |
+| Engine | antirez/h3.c (MIT); weights are MiniMax H3 Community License |
+| Frames | `5+17n` (22 / 39 / 56 / 107 / 243 / 362), 24 fps |
+| Memory | SSD streaming under 64GB; refuse under 16GB |
 
 ### notapalindrome/ltx2-mlx-av (LTX-2 Unified)
 

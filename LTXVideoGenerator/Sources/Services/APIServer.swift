@@ -126,7 +126,7 @@ class APIServer: ObservableObject {
                 "endpoints": [
                     "GET /status": "Server and generation status",
                     "GET /queue": "Current generation queue",
-                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id)",
+                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx25_distilled, ltx25_distilled_ditq8, minimax_h3. text_encoder_id is ignored for 2.5/H3.",
                     "DELETE /queue/:id": "Cancel a queued request"
                 ]
             ])
@@ -155,6 +155,7 @@ class APIServer: ObservableObject {
                         "id": model.id,
                         "repo": model.repo,
                         "display_name": model.displayName,
+                        "backend": model.backend.rawValue,
                     ],
                     "text_encoder": [
                         "id": textEncoder.id,
@@ -204,7 +205,9 @@ class APIServer: ObservableObject {
                 resolvedModel = LTXModelCatalog.selectedModel()
             }
             let resolvedTextEncoder: LTXTextEncoder
-            if let requestedTextEncoderID, let byID = LTXTextEncoderCatalog.textEncoder(id: requestedTextEncoderID) {
+            if !resolvedModel.usesExternalTextEncoder {
+                resolvedTextEncoder = LTXTextEncoderCatalog.resolvedTextEncoder(id: resolvedModel.bundledTextEncoderId)
+            } else if let requestedTextEncoderID, let byID = LTXTextEncoderCatalog.textEncoder(id: requestedTextEncoderID) {
                 resolvedTextEncoder = byID
             } else if let requestedTextEncoderRepo, let byRepo = LTXTextEncoderCatalog.textEncoder(repo: requestedTextEncoderRepo) {
                 resolvedTextEncoder = byRepo
@@ -213,6 +216,13 @@ class APIServer: ObservableObject {
             }
             
             var params = GenerationParameters.default
+            if resolvedModel.backend == .h3c {
+                params.fps = 24
+                params.numInferenceSteps = H3SpeedPreset.default.steps
+                params.numFrames = 22
+                params.width = 512
+                params.height = 512
+            }
             if let p = body["parameters"] as? [String: Any] {
                 if let width = p["width"] as? Int { params.width = width }
                 if let height = p["height"] as? Int { params.height = height }
@@ -229,6 +239,14 @@ class APIServer: ObservableObject {
                     }
                     params.imageStrength = imageStrength
                 }
+            }
+            if resolvedModel.backend == .h3c {
+                params.fps = 24
+                params.numFrames = H3Engine.snapFrameCount(params.numFrames)
+                let canvas = H3Engine.clampCanvas(width: params.width, height: params.height)
+                params.width = canvas.0
+                params.height = canvas.1
+                params.numInferenceSteps = H3SpeedPreset.from(inferenceSteps: params.numInferenceSteps).steps
             }
             
             let request = GenerationRequest(
@@ -253,6 +271,7 @@ class APIServer: ObservableObject {
                 "source_image_name": request.sourceImagePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? NSNull(),
                 "model_id": request.modelId,
                 "model_repo": resolvedModel.repo,
+                "backend": resolvedModel.backend.rawValue,
                 "text_encoder_id": request.textEncoderId,
                 "text_encoder_repo": resolvedTextEncoder.repo,
                 "message": "Generation request added to queue"

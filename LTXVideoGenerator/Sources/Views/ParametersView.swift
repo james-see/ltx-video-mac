@@ -84,39 +84,65 @@ struct ParametersView: View {
                         )
                     }
 
-                    // Inference steps
-                    ParameterSlider(
-                        title: "Inference Steps",
-                        value: Binding(
-                            get: { Double(parameters.numInferenceSteps) },
-                            set: { parameters.numInferenceSteps = Int($0) }
-                        ),
-                        range: 10...100,
-                        step: 5,
-                        icon: "arrow.triangle.2.circlepath"
-                    )
-
-                    if let range = selectedModel.recommendedSteps {
-                        HStack(spacing: 4) {
-                            Image(systemName: "target")
-                                .foregroundStyle(.blue)
-                            Text(range.lowerBound == range.upperBound
-                                ? "Fixed \(range.lowerBound) steps (8 + 3). Slider is ignored."
-                                : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
+                    if selectedModel.backend == .h3c {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("H3 Speed Preset", systemImage: "hare")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: Binding(
+                                get: { H3SpeedPreset.from(inferenceSteps: parameters.numInferenceSteps) },
+                                set: { parameters.numInferenceSteps = $0.steps }
+                            )) {
+                                ForEach(H3SpeedPreset.allCases) { preset in
+                                    Text(preset.displayName).tag(preset)
+                                }
+                            }
+                            .labelsHidden()
+                            Text("Fast = 4/50/1, Default = 20/45/2, Reference = 50/50/1 (steps/layers/reuse).")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                    } else {
+                        ParameterSlider(
+                            title: "Inference Steps",
+                            value: Binding(
+                                get: { Double(parameters.numInferenceSteps) },
+                                set: { parameters.numInferenceSteps = Int($0) }
+                            ),
+                            range: 10...100,
+                            step: 5,
+                            icon: "arrow.triangle.2.circlepath"
+                        )
+
+                        if let range = selectedModel.recommendedSteps {
+                            HStack(spacing: 4) {
+                                Image(systemName: "target")
+                                    .foregroundStyle(.blue)
+                                Text(range.lowerBound == range.upperBound
+                                    ? (selectedModel.backend == .ltx2Mlx
+                                        ? "Fixed \(range.lowerBound) steps (distilled). Slider is ignored."
+                                        : "Fixed \(range.lowerBound) steps (8 + 3). Slider is ignored.")
+                                    : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
-                    
-                    // Guidance scale
-                    ParameterSlider(
-                        title: "Guidance Scale",
-                        value: $parameters.guidanceScale,
-                        range: 1...15,
-                        step: 0.5,
-                        icon: "dial.medium",
-                        format: "%.1f"
-                    )
+
+                    if selectedModel.backend != .h3c && selectedModel.backend != .ltx2Mlx {
+                        ParameterSlider(
+                            title: "Guidance Scale",
+                            value: $parameters.guidanceScale,
+                            range: 1...15,
+                            step: 0.5,
+                            icon: "dial.medium",
+                            format: "%.1f"
+                        )
+                    } else if selectedModel.backend == .ltx2Mlx {
+                        Text("LTX-2.5 distilled uses CFG=1. Guidance scale is ignored.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     
                     Divider()
                     
@@ -139,6 +165,7 @@ struct ParametersView: View {
                                     Text("896").tag(896)
                                     Text("1024").tag(1024)
                                     Text("1280").tag(1280)
+                                    Text("1344").tag(1344)
                                     Text("1536").tag(1536)
                                     Text("1920").tag(1920)
                                     Text("2048").tag(2048)
@@ -193,17 +220,36 @@ struct ParametersView: View {
                     
                     Divider()
                     
-                    // Frame count
-                    ParameterSlider(
-                        title: "Frames",
-                        value: Binding(
-                            get: { Double(parameters.numFrames) },
-                            set: { parameters.numFrames = Int($0) }
-                        ),
-                        range: 25...1000,
-                        step: 25,
-                        icon: "film.stack"
-                    )
+                    if selectedModel.backend == .h3c {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Duration (H3 snaps frames)", systemImage: "film.stack")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: Binding(
+                                get: { H3Engine.snapFrameCount(parameters.numFrames) },
+                                set: { parameters.numFrames = $0 }
+                            )) {
+                                ForEach(H3Engine.legalFrameCounts, id: \.self) { count in
+                                    Text("\(count) frames · \(H3Engine.secondsLabel(forFrames: count))").tag(count)
+                                }
+                            }
+                            .labelsHidden()
+                            Text("H3 aligns to 5+17n at 24 fps. Width/height snap to multiples of 32 (max 768×1344).")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    } else {
+                        ParameterSlider(
+                            title: "Frames",
+                            value: Binding(
+                                get: { Double(parameters.numFrames) },
+                                set: { parameters.numFrames = Int($0) }
+                            ),
+                            range: 25...1000,
+                            step: 25,
+                            icon: "film.stack"
+                        )
+                    }
                     
                     if parameters.numFrames > 500 {
                         HStack(spacing: 4) {
@@ -215,31 +261,36 @@ struct ParametersView: View {
                         }
                     }
                     
-                    // FPS
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("FPS", systemImage: "speedometer")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        Picker("", selection: $parameters.fps) {
-                            Text("12 fps").tag(12)
-                            Text("20 fps").tag(20)
-                            Text("24 fps").tag(24)
-                            Text("30 fps").tag(30)
-                        }
-                        .pickerStyle(.segmented)
-
-                        Text("Synchronized speech works best at 24 fps.")
+                    if selectedModel.backend == .h3c {
+                        Text("H3 emits 24 fps. The FPS slider is ignored.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("FPS", systemImage: "speedometer")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
 
-                        if parameters.fps != 24 {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(.orange)
-                                Text("Non-24 fps can reduce speech/lip-sync quality.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                            Picker("", selection: $parameters.fps) {
+                                Text("12 fps").tag(12)
+                                Text("20 fps").tag(20)
+                                Text("24 fps").tag(24)
+                                Text("30 fps").tag(30)
+                            }
+                            .pickerStyle(.segmented)
+
+                            Text("Synchronized speech works best at 24 fps.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+
+                            if parameters.fps != 24 {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                    Text("Non-24 fps can reduce speech/lip-sync quality.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -287,26 +338,50 @@ struct ParametersView: View {
                     
                     Divider()
                     
-                    // VAE Tiling Mode
-                    VStack(alignment: .leading, spacing: 8) {
-                        Label("VAE Tiling", systemImage: "square.grid.3x3")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                        
-                        Picker("", selection: $parameters.vaeTilingMode) {
-                            Text("Auto").tag("auto")
-                            Text("None").tag("none")
-                            Text("Default").tag("default")
-                            Text("Aggressive").tag("aggressive")
-                            Text("Conservative").tag("conservative")
-                            Text("Spatial Only").tag("spatial")
-                            Text("Temporal Only").tag("temporal")
+                    if selectedModel.backend == .h3c {
+                        if H3Engine.shouldUseSSDStreaming() {
+                            Text("SSD streaming is on automatically (<64GB RAM). DiT residency drops to ~2 GiB.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .labelsHidden()
-                        
-                        Text("Controls memory vs speed tradeoff during decoding. Aggressive reduces peak memory but can trigger macOS Metal “Impacting Interactivity” watchdogs on small resolutions; use Auto or Conservative if that happens.")
+                    } else if selectedModel.backend == .ltx2Mlx {
+                        Text("VAE tiling maps to ltx-2-mlx --tile-spatial / --tile-frames. Aggressive or Spatial → --tile-spatial 2.")
                             .font(.caption2)
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("VAE Tiling", systemImage: "square.grid.3x3")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Picker("", selection: $parameters.vaeTilingMode) {
+                                Text("Auto").tag("auto")
+                                Text("None").tag("none")
+                                Text("Aggressive").tag("aggressive")
+                                Text("Spatial Only").tag("spatial")
+                                Text("Temporal Only").tag("temporal")
+                            }
+                            .labelsHidden()
+                        }
+                    } else {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("VAE Tiling", systemImage: "square.grid.3x3")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            Picker("", selection: $parameters.vaeTilingMode) {
+                                Text("Auto").tag("auto")
+                                Text("None").tag("none")
+                                Text("Default").tag("default")
+                                Text("Aggressive").tag("aggressive")
+                                Text("Conservative").tag("conservative")
+                                Text("Spatial Only").tag("spatial")
+                                Text("Temporal Only").tag("temporal")
+                            }
+                            .labelsHidden()
+
+                            Text("Controls memory vs speed tradeoff during decoding. Aggressive reduces peak memory but can trigger macOS Metal “Impacting Interactivity” watchdogs on small resolutions; use Auto or Conservative if that happens.")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
                     }
                     
                     // Estimated time
@@ -338,6 +413,18 @@ struct ParametersView: View {
             }
         }
         .padding()
+        .onChange(of: selectedModelID) { _, _ in
+            if selectedModel.backend == .h3c {
+                parameters.fps = 24
+                parameters.numFrames = H3Engine.snapFrameCount(parameters.numFrames)
+                let canvas = H3Engine.clampCanvas(width: parameters.width, height: parameters.height)
+                parameters.width = canvas.0
+                parameters.height = canvas.1
+                if parameters.numInferenceSteps != 4 && parameters.numInferenceSteps != 20 && parameters.numInferenceSteps != 50 {
+                    parameters.numInferenceSteps = H3SpeedPreset.default.steps
+                }
+            }
+        }
         .sheet(isPresented: $showSavePreset) {
             SavePresetSheet(
                 presetName: $newPresetName,

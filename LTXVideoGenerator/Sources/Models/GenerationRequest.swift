@@ -1,5 +1,11 @@
 import Foundation
 
+enum GenerationBackend: String, Codable {
+    case mlxVideoWithAudio
+    case ltx2Mlx
+    case h3c
+}
+
 struct LTXModel: Identifiable, Codable, Hashable {
     let id: String
     let repo: String
@@ -10,10 +16,79 @@ struct LTXModel: Identifiable, Codable, Hashable {
     let recommendedStepsLower: Int?
     let recommendedStepsUpper: Int?
     let tips: String?
+    let backend: GenerationBackend
+    let minRecommendedRAMGB: Int?
+    let ditRepo: String?
 
     var recommendedSteps: ClosedRange<Int>? {
         guard let lo = recommendedStepsLower, let hi = recommendedStepsUpper else { return nil }
         return lo...hi
+    }
+
+    var usesExternalTextEncoder: Bool {
+        backend == .mlxVideoWithAudio
+    }
+
+    var bundledTextEncoderId: String? {
+        switch backend {
+        case .mlxVideoWithAudio: return nil
+        case .ltx2Mlx: return "gemma4_12b_pack"
+        case .h3c: return "h3_qwen3_vl"
+        }
+    }
+
+    func resolvedTextEncoderId(_ selectedId: String) -> String {
+        bundledTextEncoderId ?? selectedId
+    }
+
+    init(
+        id: String,
+        repo: String,
+        displayName: String,
+        downloadSize: String,
+        supportsBuiltInAudio: Bool,
+        qualityWarning: String?,
+        recommendedStepsLower: Int?,
+        recommendedStepsUpper: Int?,
+        tips: String?,
+        backend: GenerationBackend = .mlxVideoWithAudio,
+        minRecommendedRAMGB: Int? = nil,
+        ditRepo: String? = nil
+    ) {
+        self.id = id
+        self.repo = repo
+        self.displayName = displayName
+        self.downloadSize = downloadSize
+        self.supportsBuiltInAudio = supportsBuiltInAudio
+        self.qualityWarning = qualityWarning
+        self.recommendedStepsLower = recommendedStepsLower
+        self.recommendedStepsUpper = recommendedStepsUpper
+        self.tips = tips
+        self.backend = backend
+        self.minRecommendedRAMGB = minRecommendedRAMGB
+        self.ditRepo = ditRepo
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case id, repo, displayName, downloadSize, supportsBuiltInAudio
+        case qualityWarning, recommendedStepsLower, recommendedStepsUpper, tips
+        case backend, minRecommendedRAMGB, ditRepo
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        repo = try c.decode(String.self, forKey: .repo)
+        displayName = try c.decode(String.self, forKey: .displayName)
+        downloadSize = try c.decode(String.self, forKey: .downloadSize)
+        supportsBuiltInAudio = try c.decode(Bool.self, forKey: .supportsBuiltInAudio)
+        qualityWarning = try c.decodeIfPresent(String.self, forKey: .qualityWarning)
+        recommendedStepsLower = try c.decodeIfPresent(Int.self, forKey: .recommendedStepsLower)
+        recommendedStepsUpper = try c.decodeIfPresent(Int.self, forKey: .recommendedStepsUpper)
+        tips = try c.decodeIfPresent(String.self, forKey: .tips)
+        backend = try c.decodeIfPresent(GenerationBackend.self, forKey: .backend) ?? .mlxVideoWithAudio
+        minRecommendedRAMGB = try c.decodeIfPresent(Int.self, forKey: .minRecommendedRAMGB)
+        ditRepo = try c.decodeIfPresent(String.self, forKey: .ditRepo)
     }
 }
 
@@ -64,6 +139,46 @@ enum LTXModelCatalog {
             recommendedStepsLower: 11,
             recommendedStepsUpper: 11,
             tips: "Distilled schedule is fixed at 8 stage-1 + 3 stage-2 steps (11 total). The inference-steps slider is ignored. Uses ~30GB RAM vs ~50GB for bf16."
+        ),
+        LTXModel(
+            id: "ltx25_distilled",
+            repo: "mlx-community/ltx-2.5-mlx",
+            displayName: "LTX-2.5 Distilled (bf16)",
+            downloadSize: "~100GB",
+            supportsBuiltInAudio: true,
+            qualityWarning: "Gemma 4 is bundled in the pack. Needs 64GB+ RAM (128GB comfortable). Distilled 8-step, CFG=1.",
+            recommendedStepsLower: 8,
+            recommendedStepsUpper: 8,
+            tips: "LTX-2.5 distilled uses a fixed 8-step schedule. Gemma 4 encoder is inside the pack. Requires ltx-2-mlx 0.15+.",
+            backend: .ltx2Mlx,
+            minRecommendedRAMGB: 64
+        ),
+        LTXModel(
+            id: "ltx25_distilled_ditq8",
+            repo: "mlx-community/ltx-2.5-mlx",
+            displayName: "LTX-2.5 Distilled Q8 DiT",
+            downloadSize: "~100GB + ~21GB DiT",
+            supportsBuiltInAudio: true,
+            qualityWarning: "8-bit quantized DiT on the 2.5 pack. 64GB recommended; 32GB may work with --low-ram.",
+            recommendedStepsLower: 8,
+            recommendedStepsUpper: 8,
+            tips: "Same 2.5 pack with --dit mlx-community/ltx-2.5-mlx-ditq8. Do not confuse with the -q8 text-encoder repo.",
+            backend: .ltx2Mlx,
+            minRecommendedRAMGB: 32,
+            ditRepo: "mlx-community/ltx-2.5-mlx-ditq8"
+        ),
+        LTXModel(
+            id: "minimax_h3",
+            repo: "MiniMaxAI/MiniMax-H3",
+            displayName: "MiniMax H3 (h3.c)",
+            downloadSize: "~144GB",
+            supportsBuiltInAudio: true,
+            qualityWarning: "MiniMax H3 Community License. Native C/Metal via antirez/h3.c. 32GB+ with SSD streaming; 16GB is not viable.",
+            recommendedStepsLower: 4,
+            recommendedStepsUpper: 50,
+            tips: "Frames snap to 5+17n. FPS is 24. Build h3 with `git clone https://github.com/antirez/h3.c && make -j8`.",
+            backend: .h3c,
+            minRecommendedRAMGB: 32
         ),
     ]
 
@@ -130,6 +245,26 @@ enum LTXTextEncoderCatalog {
             qualityWarning: nil,
             tips: "Enter any compatible Gemma MLX repo id below. Nothing is downloaded until you run a generation."
         ),
+        LTXTextEncoder(
+            id: "gemma4_12b_pack",
+            repo: "",
+            displayName: "Gemma 4 12B (bundled with LTX-2.5 pack)",
+            downloadSize: "included in model",
+            qualityWarning: nil,
+            tips: "Gemma-4-unified text encoder, bundled in the LTX-2.5 model pack. Not selectable for LTX-2/2.3."
+        ),
+        LTXTextEncoder(
+            id: "h3_qwen3_vl",
+            repo: "",
+            displayName: "Qwen3-VL (bundled with MiniMax H3)",
+            downloadSize: "included in model",
+            qualityWarning: nil,
+            tips: "H3 reads the Qwen3-VL encoder from the MiniMax-H3 snapshot. Not used for LTX models."
+        ),
+    ]
+
+    static let selectableEncoderIDs: Set<String> = [
+        "gemma3_12b_bf16", "gemma3_4b_bf16", "gemma3_12b_4bit", "custom",
     ]
 
     static var defaultTextEncoder: LTXTextEncoder {

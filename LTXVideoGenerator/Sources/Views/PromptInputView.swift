@@ -53,6 +53,8 @@ struct PromptInputView: View {
     @State private var pendingQueueAction: PendingQueueAction?
     @State private var showSaveCharacterProfile = false
     @State private var newCharacterProfileName = ""
+    @State private var showH3LicenseAlert = false
+    @AppStorage(H3Engine.licenseAcceptedKey) private var h3LicenseAccepted = false
 
     private var sourceImagePath: String? {
         storedImagePath.isEmpty ? nil : storedImagePath
@@ -92,6 +94,9 @@ struct PromptInputView: View {
         let physGB = Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
         let avail = MacOSSystemMemory.approximateAvailableMemoryGBFormatted()
         let model = selectedModel
+        if let minRAM = model.minRecommendedRAMGB, physGB < minRAM {
+            return "\(model.displayName) recommends \(minRAM)GB+ RAM. Your Mac has about \(physGB) GB physical memory (~\(avail) GB available, approximate). You can still generate."
+        }
         let isLargeBf16Unified = model.id == "ltx2_unified" || model.id == "ltx23_unified"
         let is12bBf16Encoder = selectedTextEncoderID == "gemma3_12b_bf16"
         guard isLargeBf16Unified, is12bBf16Encoder, physGB < 32 else { return nil }
@@ -189,6 +194,7 @@ struct PromptInputView: View {
                     .foregroundStyle(.secondary)
             }
             
+            if selectedModel.backend != .h3c {
             // Gemma Prompt Enhancement
             DisclosureGroup(isExpanded: $showPromptEnhancement) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -218,6 +224,11 @@ struct PromptInputView: View {
                     .disabled(!enableGemmaPromptEnhancement)
                     
                     if enableGemmaPromptEnhancement {
+                        if selectedModel.backend == .ltx2Mlx {
+                            Text("LTX-2.5 enhancement is applied as --enhance-prompt inside ltx-2-mlx (Gemma 4). The Gemma 3 preview button does not apply.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        } else {
                         Text("Controls prompt rewriting. Higher repetition penalty reduces repeated phrases. Lower top-p makes output more focused.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -238,6 +249,7 @@ struct PromptInputView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                        }
                     }
                 }
                 .padding(.top, 8)
@@ -246,6 +258,7 @@ struct PromptInputView: View {
                 Label("Prompt Enhancement", systemImage: "sparkles")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+            }
             }
             
             // Image-to-Video section
@@ -800,6 +813,31 @@ struct PromptInputView: View {
                 disableAudio = false
             }
             dismissedHeavyEncoderComboHint = false
+            if selectedModel.backend == .h3c && !h3LicenseAccepted {
+                showH3LicenseAlert = true
+            }
+        }
+        .alert("MiniMax H3 Community License", isPresented: $showH3LicenseAlert) {
+            Button("Accept") {
+                H3Engine.acceptLicense()
+                if let action = pendingQueueAction {
+                    pendingQueueAction = nil
+                    switch action {
+                    case .single:
+                        requestSingleGeneration()
+                    case .batch(let count):
+                        requestBatchGeneration(count: count)
+                    }
+                }
+            }
+            Button("Read license") {
+                H3Engine.openLicenseText()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingQueueAction = nil
+            }
+        } message: {
+            Text(H3Engine.licenseNotice())
         }
         .onChange(of: selectedTextEncoderID) { _, _ in
             dismissedHeavyEncoderComboHint = false
@@ -857,7 +895,7 @@ struct PromptInputView: View {
             gemmaRepetitionPenalty: gemmaRepetitionPenalty,
             gemmaTopP: gemmaTopP,
             modelId: selectedModelID,
-            textEncoderId: selectedTextEncoderID,
+            textEncoderId: selectedModel.resolvedTextEncoderId(selectedTextEncoderID),
             parameters: parameters
         )
         generationService.addToQueue(request)
@@ -914,6 +952,11 @@ struct PromptInputView: View {
     }
 
     private func requestSingleGeneration() {
+        if selectedModel.backend == .h3c && !h3LicenseAccepted {
+            pendingQueueAction = .single
+            showH3LicenseAlert = true
+            return
+        }
         if isHighMemoryRisk {
             pendingQueueAction = .single
             showMemoryRiskAlert = true
@@ -941,7 +984,7 @@ struct PromptInputView: View {
                 gemmaRepetitionPenalty: gemmaRepetitionPenalty,
                 gemmaTopP: gemmaTopP,
                 modelId: selectedModelID,
-                textEncoderId: selectedTextEncoderID,
+                textEncoderId: selectedModel.resolvedTextEncoderId(selectedTextEncoderID),
                 parameters: perItemParameters
             )
         }
@@ -949,6 +992,11 @@ struct PromptInputView: View {
     }
 
     private func requestBatchGeneration(count: Int) {
+        if selectedModel.backend == .h3c && !h3LicenseAccepted {
+            pendingQueueAction = .batch(count)
+            showH3LicenseAlert = true
+            return
+        }
         if isHighMemoryRisk {
             pendingQueueAction = .batch(count)
             showMemoryRiskAlert = true

@@ -24,7 +24,7 @@ LTX Video Generator is a beautiful, native macOS application built with SwiftUI.
 ### Key Features
 
 - **Apple Silicon Native** - Uses MLX for optimal M1/M2/M3/M4 performance
-- **Two LTX-2 Models** - LTX-2 Unified (~42GB) and LTX-2.3 Distilled Q4 (~19.4GB), both with built-in audio
+- **LTX-2, LTX-2.3, LTX-2.5, and MiniMax H3** - 2.3 Q4 default (~22GB); 2.5 via `ltx-2-mlx`; H3 via native `h3.c`
 - **Text-to-Video** - Generate videos from text descriptions
 - **Image-to-Video** - Animate images into videos
 - **Gemma Prompt Enhancement** - Optional AI rewrites prompts for better results; uncensored enhancer avoids content filters

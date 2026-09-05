@@ -1,0 +1,217 @@
+import AppKit
+import Foundation
+import Darwin
+
+enum H3SpeedPreset: String, CaseIterable, Identifiable {
+    case fast
+    case `default`
+    case reference
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .fast: return "Fast (4 steps)"
+        case .default: return "Default (20 steps, reuse 2)"
+        case .reference: return "Reference (50 steps)"
+        }
+    }
+
+    var steps: Int {
+        switch self {
+        case .fast: return 4
+        case .default: return 20
+        case .reference: return 50
+        }
+    }
+
+    var layers: Int {
+        switch self {
+        case .fast: return 50
+        case .default: return 45
+        case .reference: return 50
+        }
+    }
+
+    var reuse: Int {
+        switch self {
+        case .fast: return 1
+        case .default: return 2
+        case .reference: return 1
+        }
+    }
+
+    static func from(inferenceSteps: Int) -> H3SpeedPreset {
+        if inferenceSteps <= 7 { return .fast }
+        if inferenceSteps <= 30 { return .default }
+        return .reference
+    }
+}
+
+enum H3Engine {
+    static let binaryPathKey = "h3BinaryPath"
+    static let modelDirectoryKey = "h3ModelDirectory"
+    static let licenseAcceptedKey = "h3LicenseAccepted"
+    static let huggingfaceRepo = "MiniMaxAI/MiniMax-H3"
+    static let legalFrameCounts = [22, 39, 56, 107, 243, 362]
+    static let maxPixelProduct = 768 * 1344
+    static let minimumRAMGB = 16
+
+    static var licenseAccepted: Bool {
+        UserDefaults.standard.bool(forKey: licenseAcceptedKey)
+    }
+
+    static func acceptLicense() {
+        UserDefaults.standard.set(true, forKey: licenseAcceptedKey)
+    }
+
+    static func physicalMemoryGB() -> Int {
+        Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
+    }
+
+    static func shouldUseSSDStreaming() -> Bool {
+        physicalMemoryGB() < 64
+    }
+
+    static func snapFrameCount(_ requested: Int) -> Int {
+        let legal = legalFrameCounts
+        return legal.min(by: { abs($0 - requested) < abs($1 - requested) }) ?? 22
+    }
+
+    static func secondsLabel(forFrames frames: Int) -> String {
+        String(format: "%.1fs", Double(frames) / 24.0)
+    }
+
+    static func snapDimension(_ value: Int) -> Int {
+        max(32, (value / 32) * 32)
+    }
+
+    static func clampCanvas(width: Int, height: Int) -> (Int, Int) {
+        var w = snapDimension(width)
+        var h = snapDimension(height)
+        if w * h > maxPixelProduct {
+            let scale = sqrt(Double(maxPixelProduct) / Double(w * h))
+            w = snapDimension(Int(Double(w) * scale))
+            h = snapDimension(Int(Double(h) * scale))
+            while w * h > maxPixelProduct {
+                if w >= h { w -= 32 } else { h -= 32 }
+                w = max(32, w)
+                h = max(32, h)
+            }
+        }
+        return (w, h)
+    }
+
+    static func resolvedBinary(userDefaults: UserDefaults = .standard) -> String? {
+        let fm = FileManager.default
+        let preferred = userDefaults.string(forKey: binaryPathKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !preferred.isEmpty, fm.isExecutableFile(atPath: preferred) {
+            return preferred
+        }
+
+        let home = fm.homeDirectoryForCurrentUser.path
+        let local = "\(home)/projects/h3.c/h3"
+        if fm.isExecutableFile(atPath: local) {
+            return local
+        }
+
+        if let which = which("h3") {
+            return which
+        }
+        return nil
+    }
+
+    static func resolvedModelDirectory(userDefaults: UserDefaults = .standard) -> String? {
+        let fm = FileManager.default
+        let preferred = userDefaults.string(forKey: modelDirectoryKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !preferred.isEmpty, isModelDirectory(preferred) {
+            return preferred
+        }
+
+        let home = fm.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/MiniMax-H3",
+            "\(home)/projects/MiniMax-H3",
+        ]
+        for path in candidates where isModelDirectory(path) {
+            return path
+        }
+
+        let cacheRoot = HuggingFaceCacheConfiguration.effectiveDirectory(userDefaults: userDefaults)
+        let hub = URL(fileURLWithPath: cacheRoot, isDirectory: true)
+            .appendingPathComponent("hub", isDirectory: true)
+            .appendingPathComponent("models--MiniMaxAI--MiniMax-H3", isDirectory: true)
+            .appendingPathComponent("snapshots", isDirectory: true)
+        if let snapshots = try? fm.contentsOfDirectory(atPath: hub.path) {
+            for snap in snapshots.sorted() {
+                let path = hub.appendingPathComponent(snap).path
+                if isModelDirectory(path) {
+                    return path
+                }
+            }
+        }
+        return nil
+    }
+
+    static func isModelDirectory(_ path: String) -> Bool {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue else {
+            return false
+        }
+        let entries = (try? FileManager.default.contentsOfDirectory(atPath: path)) ?? []
+        return entries.contains { $0.hasSuffix(".safetensors") || $0 == "config.json" || $0.hasPrefix("transformer") }
+    }
+
+    static let licensePageURL = URL(string: "https://huggingface.co/MiniMaxAI/MiniMax-H3")!
+    static let licenseTextURL = URL(string: "https://huggingface.co/MiniMaxAI/MiniMax-H3/blob/main/LICENSE")!
+    static let licenseRequestURL = URL(string: "https://platform.minimax.io/h3-license")!
+
+    static func licenseNotice() -> String {
+        "MiniMax H3 weights are under the MiniMax H3 Community License (h3.c itself is MIT). First generate downloads MiniMaxAI/MiniMax-H3 (~144GB). US/EU/UK/KR users may need authorization at platform.minimax.io/h3-license. Commercial use over $20M/year needs written permission."
+    }
+
+    static func openLicensePage() {
+        NSWorkspace.shared.open(licensePageURL)
+    }
+
+    static func openLicenseText() {
+        NSWorkspace.shared.open(licenseTextURL)
+    }
+
+    static func missingBinaryHint() -> String {
+        "h3 binary not found. Clone and build: git clone https://github.com/antirez/h3.c && cd h3.c && make -j8. Then set the binary path in Preferences → General, or place it at ~/projects/h3.c/h3."
+    }
+
+    static func missingModelHint() -> String {
+        "MiniMax-H3 download failed (~144GB). Check the network, run `hf auth login` if the repo is gated, or set Preferences → General → H3 model directory to a local snapshot. Full log: /tmp/ltx_generation.log"
+    }
+
+    static func downloadRequiresPythonHint() -> String {
+        "First H3 generate downloads MiniMaxAI/MiniMax-H3 (~144GB) into the Hugging Face cache. Set a Python path in Preferences (huggingface_hub is already required) or point H3 model directory at an existing snapshot."
+    }
+
+    private static func which(_ name: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
+        process.arguments = [name]
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        process.environment = env
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            guard process.terminationStatus == 0 else { return nil }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let path = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return path.isEmpty ? nil : path
+        } catch {
+            return nil
+        }
+    }
+}

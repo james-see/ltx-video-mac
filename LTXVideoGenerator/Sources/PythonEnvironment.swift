@@ -80,6 +80,15 @@ struct PythonDetails {
 
 /// Minimum mlx-video-with-audio version (multi-image keyframe / first-last-frame I2V)
 private let mlxVideoMinVersion = "0.1.37"
+private let mlxLmMinVersion = "0.31.2"
+
+enum Ltx2MlxInstall {
+    static let tag = "v0.15.2"
+    static let core = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-core-mlx"
+    static let pipelines = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-pipelines-mlx"
+    static let packages = [core, pipelines, "mlx-lm>=\(mlxLmMinVersion)"]
+    static let hint = "pip install \"\(core)\" \"\(pipelines)\" \"mlx-lm>=\(mlxLmMinVersion)\""
+}
 
 /// Manages Python environment detection and validation
 /// Uses subprocess-based validation to avoid PythonKit crashes
@@ -89,8 +98,8 @@ class PythonEnvironment {
     private(set) var isConfigured = false
     private(set) var lastValidationResult: PythonDetails?
     
-    /// Cached successful validation for generation (same path + same min mlx-video version).
-    private var generationValidationCache: (path: String, minVersion: String, timestamp: Date, details: PythonDetails)?
+    /// Cached successful validation for generation (same path + same min mlx-video version + ltx-2-mlx flag).
+    private var generationValidationCache: (path: String, minVersion: String, requireLtx2Mlx: Bool, timestamp: Date, details: PythonDetails)?
     private let generationValidationCacheTTL: TimeInterval = 5 * 60
     
     private init() {}
@@ -424,26 +433,98 @@ class PythonEnvironment {
 
     /// Ensures the configured Python path has required packages and minimum `mlx-video-with-audio` (auto-install / upgrade in venvs).
     /// Call before generation so users do not need to open Preferences and click Validate.
-    func ensureReadyForGeneration(path: String) async -> (success: Bool, message: String, details: PythonDetails?) {
+    /// When `requireLtx2Mlx` is true (LTX-2.5 catalog models), also require the git-installed ltx-2-mlx CLI.
+    func ensureReadyForGeneration(path: String, requireLtx2Mlx: Bool = false) async -> (success: Bool, message: String, details: PythonDetails?) {
         let now = Date()
         if let c = generationValidationCache,
            c.path == path,
            c.minVersion == mlxVideoMinVersion,
+           c.requireLtx2Mlx == requireLtx2Mlx,
            now.timeIntervalSince(c.timestamp) < generationValidationCacheTTL {
             return (true, "Python environment ready", c.details)
         }
         let result = await validateWithSubprocess(path: path)
-        if result.success, let d = result.details {
-            generationValidationCache = (path, mlxVideoMinVersion, now, d)
-        } else {
+        guard result.success, let details = result.details else {
             generationValidationCache = nil
+            return (result.success, result.message, result.details)
         }
-        return (result.success, result.message, result.details)
+        if requireLtx2Mlx {
+            let ltx2 = await ensureLtx2Mlx(executablePath: details.executablePath, automaticInstall: isVirtualEnvironment(details.executablePath))
+            if !ltx2.success {
+                generationValidationCache = nil
+                return (false, ltx2.message, details)
+            }
+        }
+        generationValidationCache = (path, mlxVideoMinVersion, requireLtx2Mlx, now, details)
+        return (true, result.message, details)
     }
 
     /// Record a successful validation (e.g. from Preferences) so the next generation skips redundant work.
     func applyValidatedDetailsForGeneration(path: String, details: PythonDetails) {
-        generationValidationCache = (path, mlxVideoMinVersion, Date(), details)
+        generationValidationCache = (path, mlxVideoMinVersion, false, Date(), details)
+    }
+
+    func hasLtx2Mlx(executablePath: String) -> Bool {
+        if UserDefaults.standard.bool(forKey: "useLocalLtx2MlxRepo") {
+            let local = NSHomeDirectory() + "/projects/ltx-2-mlx"
+            if FileManager.default.fileExists(atPath: local) {
+                return true
+            }
+        }
+        let script = """
+        import os, shutil, sys
+        bin_dir = os.path.dirname(sys.executable)
+        cand = os.path.join(bin_dir, "ltx-2-mlx")
+        if os.path.isfile(cand) and os.access(cand, os.X_OK):
+            print("OK")
+        elif shutil.which("ltx-2-mlx"):
+            print("OK")
+        else:
+            for name in ("ltx_pipelines", "ltx_pipelines_mlx"):
+                try:
+                    __import__(name)
+                    print("OK")
+                    break
+                except Exception:
+                    pass
+        """
+        return runPythonSync(executable: executablePath, script: script)?.contains("OK") == true
+    }
+
+    func ensureLtx2Mlx(executablePath: String, automaticInstall: Bool) async -> (success: Bool, message: String) {
+        if hasLtx2Mlx(executablePath: executablePath) {
+            let verScript = "import importlib.metadata as m\ntry:\n print(m.version('mlx-lm'))\nexcept Exception:\n print('')"
+            if let ver = runPythonSync(executable: executablePath, script: verScript)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !ver.isEmpty,
+               compareVersions(ver, lessThan: mlxLmMinVersion) {
+                if automaticInstall {
+                    let upgrade = await installPackages(
+                        pythonExecutable: executablePath,
+                        packages: ["mlx-lm>=\(mlxLmMinVersion)"],
+                        upgrade: true
+                    )
+                    if !upgrade.success {
+                        return (false, "mlx-lm needs \(mlxLmMinVersion)+ for Gemma 4. \(upgrade.message)")
+                    }
+                } else {
+                    return (false, "mlx-lm \(ver) is too old for LTX-2.5 (need \(mlxLmMinVersion)+). Run: pip install -U \"mlx-lm>=\(mlxLmMinVersion)\"")
+                }
+            }
+            return (true, "ltx-2-mlx ready")
+        }
+        if automaticInstall {
+            let installed = await installPackages(
+                pythonExecutable: executablePath,
+                packages: Ltx2MlxInstall.packages,
+                upgrade: false
+            )
+            if installed.success, hasLtx2Mlx(executablePath: executablePath) {
+                return (true, installed.message)
+            }
+            return (false, "LTX-2.5 needs ltx-2-mlx. Auto-install failed. \(installed.message) Manual: \(Ltx2MlxInstall.hint) — or clone https://github.com/dgrauet/ltx-2-mlx to ~/projects/ltx-2-mlx and enable Preferences → Use local ltx-2-mlx repo.")
+        }
+        return (false, "LTX-2.5 needs ltx-2-mlx (not on PyPI). Run: \(Ltx2MlxInstall.hint) — or clone to ~/projects/ltx-2-mlx and enable Preferences → Use local ltx-2-mlx repo.")
     }
 
     func clearGenerationValidationCache() {

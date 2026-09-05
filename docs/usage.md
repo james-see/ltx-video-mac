@@ -43,7 +43,7 @@ Select a preset from the dropdown to quickly configure parameters:
 | Square | 512×512 | 97 | 30 | Social media |
 
 {: .tip }
-The LTX-2 Unified model uses a 2-stage generation pipeline with built-in audio.
+The LTX-2 Unified model uses a 2-stage generation pipeline with built-in audio. LTX-2.5 distilled is a single 8-step pass via `ltx-2-mlx`. MiniMax H3 runs the native `h3` binary (24 fps, frames snap to 5+17n).
 
 ### 3. Generate
 

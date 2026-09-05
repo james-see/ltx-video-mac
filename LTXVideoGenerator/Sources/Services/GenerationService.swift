@@ -122,11 +122,63 @@ class GenerationService: ObservableObject {
         
         isProcessing = true
         progress = 0
-        
-        // Ensure Python packages (including mlx-video-with-audio min version) match the path in Settings — no manual Validate required.
-        if let pythonPath = UserDefaults.standard.string(forKey: "pythonPath"), !pythonPath.isEmpty {
+
+        let pendingRequest = queue[index]
+        let pendingModel = LTXModelCatalog.resolvedModel(id: pendingRequest.modelId)
+
+        if pendingModel.backend == .h3c {
+            if H3Engine.physicalMemoryGB() < H3Engine.minimumRAMGB {
+                queue[index].status = .failed
+                error = .generationFailed(
+                    "MiniMax H3 needs more than \(H3Engine.minimumRAMGB)GB RAM. This Mac reports about \(H3Engine.physicalMemoryGB())GB."
+                )
+                currentRequest = nil
+                isProcessing = false
+                progress = 0
+                queue.removeAll { $0.status != .pending }
+                return
+            }
+            if !H3Engine.licenseAccepted {
+                queue[index].status = .failed
+                error = .generationFailed(
+                    H3Engine.licenseNotice()
+                        + " Accept the dialog in the app, or Preferences → General → MiniMax H3. License: \(H3Engine.licenseTextURL.absoluteString)"
+                )
+                currentRequest = nil
+                isProcessing = false
+                progress = 0
+                queue.removeAll { $0.status != .pending }
+                return
+            }
+            // First generate downloads MiniMax-H3 via huggingface_hub if no local snapshot.
+            if H3Engine.resolvedModelDirectory() == nil {
+                guard let pythonPath = UserDefaults.standard.string(forKey: "pythonPath"), !pythonPath.isEmpty else {
+                    queue[index].status = .failed
+                    error = .generationFailed(H3Engine.downloadRequiresPythonHint())
+                    currentRequest = nil
+                    isProcessing = false
+                    progress = 0
+                    queue.removeAll { $0.status != .pending }
+                    return
+                }
+                statusMessage = "Checking Python environment for H3 download..."
+                let ensure = await PythonEnvironment.shared.ensureReadyForGeneration(path: pythonPath)
+                if !ensure.success {
+                    queue[index].status = .failed
+                    error = .generationFailed(ensure.message)
+                    currentRequest = nil
+                    isProcessing = false
+                    progress = 0
+                    queue.removeAll { $0.status != .pending }
+                    return
+                }
+            }
+        } else if let pythonPath = UserDefaults.standard.string(forKey: "pythonPath"), !pythonPath.isEmpty {
             statusMessage = "Checking Python environment..."
-            let ensure = await PythonEnvironment.shared.ensureReadyForGeneration(path: pythonPath)
+            let ensure = await PythonEnvironment.shared.ensureReadyForGeneration(
+                path: pythonPath,
+                requireLtx2Mlx: pendingModel.backend == .ltx2Mlx
+            )
             if !ensure.success {
                 queue[index].status = .failed
                 error = .generationFailed(ensure.message)
@@ -149,8 +201,8 @@ class GenerationService: ObservableObject {
             return
         }
         
-        // Load model if needed
-        if !isModelLoaded {
+        // Load model if needed (H3 is a standalone binary; no MLX preload).
+        if pendingModel.backend != .h3c, !isModelLoaded {
             await loadModel()
             guard isModelLoaded else {
                 isProcessing = false

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **LTX-2.5** via `dgrauet/ltx-2-mlx` 0.15+ (`ltx25_distilled`, `ltx25_distilled_ditq8`). Gemma 4 is bundled in the pack; the Gemma 3 encoder picker is hidden. Distilled 8-step schedule. Install is git-only and required only when a 2.5 model is selected (`mlx-lm>=0.31.2`).
+- **MiniMax H3** via `antirez/h3.c` (`minimax_h3`). Native C/Metal subprocess, license dialog on first select/generate (Accept / Read license), binary discovery, frame snap (`5+17n`), 24 fps, speed presets, SSD streaming under 64GB, first-frame I2V. First generate auto-downloads `MiniMaxAI/MiniMax-H3` (~144GB) into the configured Hugging Face cache unless a local snapshot is already present.
+- `GenerationBackend` dispatch so LTX-2/2.3 stay on `mlx-video-with-audio`. REST `POST /generate` accepts the new `model_id` values; `text_encoder_id` is ignored for 2.5/H3.
+
+### Changed
+- Pin `mlx-lm>=0.31.2` for Gemma 4 / LTX-2.5.
+
 ## [2.3.68] - 2026-08-31
 
 ### Fixed

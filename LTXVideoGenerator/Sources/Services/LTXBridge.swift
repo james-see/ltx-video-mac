@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 enum LTXError: LocalizedError, Equatable {
     case pythonNotConfigured
@@ -46,7 +47,13 @@ private final class CancellableProcessHolder: @unchecked Sendable {
         cancelledFlag = true
         let p = process
         lock.unlock()
-        p?.terminate()
+        if let p {
+            let pid = p.processIdentifier
+            if pid > 0 {
+                kill(pid, SIGTERM)
+            }
+            p.terminate()
+        }
     }
 
     var wasCancelled: Bool {
@@ -166,6 +173,16 @@ class LTXBridge {
     }
     
     func loadModel(progressHandler: @escaping (String) -> Void) async throws {
+        let selectedModel = LTXModelCatalog.selectedModel()
+        if selectedModel.backend == .h3c {
+            guard H3Engine.resolvedBinary() != nil else {
+                throw LTXError.generationFailed(H3Engine.missingBinaryHint())
+            }
+            progressHandler("h3.c ready. Weights download on first generation (\(selectedModel.downloadSize)).")
+            isModelLoaded = true
+            return
+        }
+
         setupPythonPaths()
         
         guard pythonExecutable != nil else {
@@ -187,12 +204,39 @@ class LTXBridge {
             throw LTXError.pythonNotConfigured
         }
         
-        let selectedModel = LTXModelCatalog.selectedModel()
         progressHandler("MLX environment ready. Model will download on first generation (\(selectedModel.downloadSize)).")
         isModelLoaded = true
     }
     
     func generate(
+        request: GenerationRequest,
+        outputPath: String,
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> (videoPath: String, seed: Int, enhancedPrompt: String?) {
+        let selectedModel = LTXModelCatalog.resolvedModel(id: request.modelId)
+        switch selectedModel.backend {
+        case .mlxVideoWithAudio:
+            return try await generateWithMlxVideo(
+                request: request,
+                outputPath: outputPath,
+                progressHandler: progressHandler
+            )
+        case .ltx2Mlx:
+            return try await generateWithLtx2Mlx(
+                request: request,
+                outputPath: outputPath,
+                progressHandler: progressHandler
+            )
+        case .h3c:
+            return try await generateWithH3(
+                request: request,
+                outputPath: outputPath,
+                progressHandler: progressHandler
+            )
+        }
+    }
+
+    private func generateWithMlxVideo(
         request: GenerationRequest,
         outputPath: String,
         progressHandler: @escaping (Double, String) -> Void
@@ -867,6 +911,466 @@ except Exception as e:
         }
         
         throw LTXError.generationFailed("Failed to parse generation output: \(output)")
+    }
+
+    private func generateWithLtx2Mlx(
+        request: GenerationRequest,
+        outputPath: String,
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> (videoPath: String, seed: Int, enhancedPrompt: String?) {
+        setupPythonPaths()
+        guard pythonExecutable != nil else {
+            throw LTXError.pythonNotConfigured
+        }
+
+        let params = request.parameters
+        let seed = params.seed ?? Int.random(in: 0..<Int(Int32.max))
+        let selectedModel = LTXModelCatalog.resolvedModel(id: request.modelId)
+        let modelRepo = selectedModel.repo
+        let ditRepo = selectedModel.ditRepo ?? ""
+        let enableEnhance = UserDefaults.standard.bool(forKey: "enableGemmaPromptEnhancement")
+        let useLocalLtx2 = UserDefaults.standard.bool(forKey: "useLocalLtx2MlxRepo")
+        let forceLowRam = UserDefaults.standard.bool(forKey: "ltx2MlxLowRam")
+        let physGB = Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
+        let autoLowRam = selectedModel.minRecommendedRAMGB.map { physGB < $0 } ?? false
+        let useLowRam = forceLowRam || autoLowRam
+
+        let genWidth = (params.width / 64) * 64
+        let genHeight = (params.height / 64) * 64
+        let escapedPrompt = request.prompt
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+            .replacingOccurrences(of: "\n", with: "\\n")
+        let imagePath = request.sourceImagePath ?? ""
+        let extraKeyframes = params.keyframes.contains { !$0.imagePath.isEmpty }
+
+        progressHandler(0.1, "Starting \(request.isImageToVideo ? "image-to-video" : "text-to-video") (\(selectedModel.displayName))...")
+        if extraKeyframes {
+            progressHandler(0.11, "Extra timeline keyframes are not forwarded on the ltx-2-mlx backend yet; using the primary image only.")
+        }
+
+        let tilingArgs: String
+        switch params.vaeTilingMode {
+        case "aggressive", "spatial":
+            tilingArgs = "cmd.extend(['--tile-spatial', '2'])"
+        case "temporal":
+            tilingArgs = "cmd.extend(['--tile-frames', '2'])"
+        default:
+            tilingArgs = "pass"
+        }
+
+        let script = """
+import os
+import sys
+import json
+import shutil
+import subprocess
+import time
+import select
+import signal
+
+log_file = open("/tmp/ltx_generation.log", "w")
+def log(msg):
+    print(msg, file=log_file, flush=True)
+    print(msg, file=sys.stderr, flush=True)
+
+try:
+    log("=== LTX-2.5 ltx-2-mlx Generation Started ===")
+    log(f"Python: {sys.executable}")
+    prompt = '''\(escapedPrompt)'''
+    output_path = "\(outputPath)"
+    model_repo = "\(modelRepo)"
+    dit_repo = "\(ditRepo)"
+    image_path = "\(imagePath)"
+    local_repo = os.path.expanduser("~/projects/ltx-2-mlx")
+    use_local = \(useLocalLtx2 ? "True" : "False") and os.path.isdir(local_repo)
+
+    def resolve_prefix():
+        if use_local:
+            uv = shutil.which("uv")
+            if uv:
+                log(f"Using local ltx-2-mlx via uv: {local_repo}")
+                return [uv, "run", "--directory", local_repo, "ltx-2-mlx"]
+            raise RuntimeError(
+                "Preferences: Use local ltx-2-mlx repo is on, but uv was not found. "
+                "Install uv or turn the toggle off and pip-install ltx-2-mlx."
+            )
+        venv_bin = os.path.dirname(sys.executable)
+        candidate = os.path.join(venv_bin, "ltx-2-mlx")
+        if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return [candidate]
+        which = shutil.which("ltx-2-mlx")
+        if which:
+            return [which]
+        raise RuntimeError(
+            "ltx-2-mlx is not installed. In the app venv run: "
+            "pip install \\"git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-core-mlx\\" "
+            "\\"git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-pipelines-mlx\\" "
+            "or clone https://github.com/dgrauet/ltx-2-mlx to ~/projects/ltx-2-mlx and enable "
+            "'Use local ltx-2-mlx repo' in Preferences."
+        )
+
+    cmd = resolve_prefix() + [
+        "generate",
+        "--prompt", prompt,
+        "--model", model_repo,
+        "--distilled",
+        "-H", str(\(genHeight)),
+        "-W", str(\(genWidth)),
+        "-f", str(\(params.numFrames)),
+        "-s", str(\(seed)),
+        "-o", output_path,
+    ]
+    if dit_repo:
+        cmd.extend(["--dit", dit_repo])
+        log(f"DiT override: {dit_repo}")
+    if image_path:
+        cmd.extend(["--image", image_path])
+        log(f"I2V image: {image_path}")
+    if \(request.disableAudio ? "True" : "False"):
+        cmd.append("--no-audio")
+    if \(enableEnhance ? "True" : "False"):
+        cmd.append("--enhance-prompt")
+    if \(useLowRam ? "True" : "False"):
+        cmd.append("--low-ram")
+        log("Using --low-ram block streaming")
+    \(tilingArgs)
+
+    log(f"Command: {' '.join(cmd)}")
+    child_env = os.environ.copy()
+    process = subprocess.Popen(
+        cmd,
+        env=child_env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
+
+    def _terminate_child(signum, frame):
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+        os._exit(1)
+
+    signal.signal(signal.SIGTERM, _terminate_child)
+    signal.signal(signal.SIGINT, _terminate_child)
+
+    line_buf = ""
+    stdout_fd = process.stdout.fileno()
+    while True:
+        if process.stdout is None:
+            break
+        ready, _, _ = select.select([process.stdout], [], [], 1.0)
+        if ready:
+            try:
+                raw = os.read(stdout_fd, 8192)
+            except (ValueError, OSError):
+                raw = b""
+            if not raw:
+                if process.poll() is not None:
+                    break
+                continue
+            chunk = raw.decode("utf-8", errors="replace")
+            line_buf += chunk
+            _nl = "\\n"
+            _cr = "\\r"
+            while _nl in line_buf or _cr in line_buf:
+                line, sep, rest = line_buf.partition(_nl)
+                if not sep:
+                    line, sep, rest = line_buf.partition(_cr)
+                line_buf = rest if sep else line_buf
+                if not sep:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                log(line)
+                print(line, file=sys.stderr, flush=True)
+        elif process.poll() is not None:
+            break
+
+    process.wait()
+    if process.returncode != 0:
+        raise RuntimeError(f"ltx-2-mlx generate failed with code {process.returncode}")
+    if not os.path.isfile(output_path):
+        raise RuntimeError(f"ltx-2-mlx finished but output is missing: {output_path}")
+    log("Generation complete!")
+    log_file.close()
+    print(json.dumps({"video_path": output_path, "seed": \(seed), "mode": "ltx-2.5", "has_audio": \(request.disableAudio ? "False" : "True")}))
+except Exception as e:
+    log(f"ERROR: {e}")
+    import traceback
+    log(traceback.format_exc())
+    log_file.close()
+    sys.exit(1)
+"""
+
+        progressHandler(0.05, "Running ltx-2-mlx generation...")
+        let output = try await runPython(
+            script: script,
+            timeout: 3600,
+            generationDiagnostics: (modelRepo: modelRepo, textEncoderRepo: "gemma4-bundled")
+        ) { stderrChunk in
+            let lines = stderrChunk.replacingOccurrences(of: "\r", with: "\n")
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            DispatchQueue.main.async {
+                for line in lines {
+                    let lower = line.lowercased()
+                    if lower.contains("download") || lower.contains("fetching") {
+                        progressHandler(0.04, line)
+                    } else if lower.contains("denois") || lower.contains("step") {
+                        progressHandler(0.4, line)
+                    } else if lower.contains("decod") {
+                        progressHandler(0.9, line)
+                    } else if lower.contains("saving") || lower.contains("wrote") {
+                        progressHandler(0.95, line)
+                    }
+                }
+            }
+        }
+
+        if let jsonStart = output.range(of: "{\"video_path\""),
+           let jsonEnd = output.range(of: "}", range: jsonStart.lowerBound..<output.endIndex) {
+            let jsonString = String(output[jsonStart.lowerBound...jsonEnd.lowerBound])
+            if let data = jsonString.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let videoPath = json["video_path"] as? String,
+               let resultSeed = json["seed"] as? Int {
+                progressHandler(1.0, "Complete!")
+                return (videoPath, resultSeed, nil)
+            }
+        }
+        throw LTXError.generationFailed("Failed to parse ltx-2-mlx output: \(output)")
+    }
+
+    private func generateWithH3(
+        request: GenerationRequest,
+        outputPath: String,
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> (videoPath: String, seed: Int, enhancedPrompt: String?) {
+        if H3Engine.physicalMemoryGB() < H3Engine.minimumRAMGB {
+            throw LTXError.generationFailed(
+                "MiniMax H3 needs more than \(H3Engine.minimumRAMGB)GB RAM (VAEs alone are ~11GB). This Mac reports about \(H3Engine.physicalMemoryGB())GB."
+            )
+        }
+        guard H3Engine.licenseAccepted else {
+            throw LTXError.generationFailed(H3Engine.licenseNotice())
+        }
+        guard let binary = H3Engine.resolvedBinary() else {
+            throw LTXError.generationFailed(H3Engine.missingBinaryHint())
+        }
+        let modelDir: String
+        if let existing = H3Engine.resolvedModelDirectory() {
+            modelDir = existing
+        } else {
+            progressHandler(0.02, "Downloading MiniMax-H3 (~144GB) into the model cache…")
+            modelDir = try await downloadH3Snapshot(progressHandler: progressHandler)
+        }
+
+        let params = request.parameters
+        let seed = params.seed ?? Int.random(in: 0..<Int(Int32.max))
+        let frames = H3Engine.snapFrameCount(params.numFrames)
+        let (width, height) = H3Engine.clampCanvas(width: params.width, height: params.height)
+        let preset = H3SpeedPreset.from(inferenceSteps: params.numInferenceSteps)
+        var args = [
+            "-d", modelDir,
+            "-p", request.prompt,
+            "--width", String(width),
+            "--height", String(height),
+            "--frames", String(frames),
+            "--steps", String(preset.steps),
+            "--layers", String(preset.layers),
+            "--reuse", String(preset.reuse),
+            "--seed", String(seed),
+            "-o", outputPath,
+        ]
+        if H3Engine.shouldUseSSDStreaming() {
+            args.append("--ssd-streaming")
+        }
+        if let image = request.sourceImagePath, !image.isEmpty {
+            args.append(contentsOf: ["--first-frame", image])
+        }
+
+        progressHandler(0.1, "Starting H3 (\(preset.displayName), \(width)×\(height), \(frames) frames)...")
+        try await runExternalProcess(
+            executable: binary,
+            arguments: args,
+            timeout: 7200
+        ) { line in
+            let lower = line.lowercased()
+            if lower.contains("download") {
+                progressHandler(0.05, line)
+            } else if lower.contains("denois") || lower.contains("step") {
+                progressHandler(0.4, line)
+            } else if lower.contains("decode") || lower.contains("vae") {
+                progressHandler(0.85, line)
+            } else if lower.contains("ffmpeg") || lower.contains("encod") {
+                progressHandler(0.95, line)
+            } else {
+                progressHandler(0.2, line)
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: outputPath) else {
+            throw LTXError.generationFailed("h3 finished but output is missing: \(outputPath). Full log: /tmp/ltx_generation.log")
+        }
+        progressHandler(1.0, "Complete!")
+        return (outputPath, seed, nil)
+    }
+
+    private func downloadH3Snapshot(
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> String {
+        setupPythonPaths()
+        guard pythonExecutable != nil else {
+            throw LTXError.generationFailed(H3Engine.downloadRequiresPythonHint())
+        }
+
+        let repo = H3Engine.huggingfaceRepo
+        let script = """
+import json
+import sys
+from huggingface_hub import snapshot_download
+
+repo = "\(repo)"
+print(f"DOWNLOAD:START:{repo}", file=sys.stderr, flush=True)
+try:
+    path = snapshot_download(repo_id=repo)
+    print(f"DOWNLOAD:COMPLETE:{repo}", file=sys.stderr, flush=True)
+    print(json.dumps({"snapshot_path": path}))
+except Exception as e:
+    print(f"ERROR: {e}", file=sys.stderr, flush=True)
+    raise
+"""
+
+        let output = try await runPython(
+            script: script,
+            timeout: 14400,
+            generationDiagnostics: (modelRepo: repo, textEncoderRepo: "bundled")
+        ) { stderrChunk in
+            let lines = stderrChunk.replacingOccurrences(of: "\r", with: "\n")
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            DispatchQueue.main.async {
+                for line in lines {
+                    let lower = line.lowercased()
+                    if line.hasPrefix("DOWNLOAD:START:") {
+                        progressHandler(0.02, "Downloading MiniMax-H3 (~144GB)…")
+                    } else if line.hasPrefix("DOWNLOAD:COMPLETE:") {
+                        progressHandler(0.08, "MiniMax-H3 download complete")
+                    } else if lower.contains("gated") || lower.contains("401") || lower.contains("unauthorized") {
+                        progressHandler(0.02, "Hugging Face auth required for MiniMax-H3")
+                    } else if lower.contains("fetching") || lower.contains("download") || (line.contains("%") && line.contains("|")) {
+                        progressHandler(0.04, line)
+                    }
+                }
+            }
+        }
+
+        if let jsonStart = output.range(of: "{\"snapshot_path\""),
+           let jsonEnd = output.range(of: "}", range: jsonStart.lowerBound..<output.endIndex) {
+            let jsonString = String(output[jsonStart.lowerBound...jsonEnd.lowerBound])
+            if let data = jsonString.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let path = json["snapshot_path"] as? String,
+               H3Engine.isModelDirectory(path) {
+                return path
+            }
+        }
+        if let existing = H3Engine.resolvedModelDirectory() {
+            return existing
+        }
+        throw LTXError.generationFailed(H3Engine.missingModelHint())
+    }
+
+    private func runExternalProcess(
+        executable: String,
+        arguments: [String],
+        timeout: TimeInterval,
+        stdoutHandler: ((String) -> Void)?
+    ) async throws {
+        if let cacheError = HuggingFaceCacheConfiguration.availabilityError() {
+            throw LTXError.generationFailed(cacheError)
+        }
+
+        let logFile = "/tmp/ltx_generation.log"
+        let holder = CancellableProcessHolder()
+
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    let process = Process()
+                    process.executableURL = URL(fileURLWithPath: executable)
+                    process.arguments = arguments
+                    var env: [String: String] = [:]
+                    let execDir = URL(fileURLWithPath: executable).deletingLastPathComponent().path
+                    env["PATH"] = "\(execDir):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                    env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
+                    env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
+                    env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
+                    HuggingFaceCacheConfiguration.apply(to: &env)
+                    process.environment = env
+
+                    let stdoutPipe = Pipe()
+                    process.standardOutput = stdoutPipe
+                    process.standardError = stdoutPipe
+
+                    stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
+                        let data = handle.availableData
+                        guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
+                        if let logData = str.data(using: .utf8),
+                           let fh = FileHandle(forWritingAtPath: logFile) {
+                            fh.seekToEndOfFile()
+                            fh.write(logData)
+                            fh.closeFile()
+                        } else {
+                            try? str.write(toFile: logFile, atomically: false, encoding: .utf8)
+                        }
+                        for line in str.replacingOccurrences(of: "\r", with: "\n")
+                            .components(separatedBy: "\n")
+                            .map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) })
+                            .filter({ !$0.isEmpty }) {
+                            DispatchQueue.main.async { stdoutHandler?(line) }
+                        }
+                    }
+
+                    guard holder.storeIfNotCancelled(process) else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+
+                    do {
+                        let header = "=== h3.c Process Started ===\nBinary: \(executable)\nArgs: \(arguments.joined(separator: " "))\nTime: \(Date())\n"
+                        try? header.write(toFile: logFile, atomically: false, encoding: .utf8)
+                        try process.run()
+                        process.waitUntilExit()
+                        stdoutPipe.fileHandleForReading.readabilityHandler = nil
+                        if holder.wasCancelled {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        if process.terminationStatus != 0 {
+                            continuation.resume(throwing: LTXError.generationFailed(
+                                "h3 exited with code \(process.terminationStatus). Full log: /tmp/ltx_generation.log"
+                            ))
+                            return
+                        }
+                        continuation.resume()
+                    } catch {
+                        continuation.resume(throwing: LTXError.generationFailed(error.localizedDescription))
+                    }
+                }
+            }
+        } onCancel: {
+            holder.cancel()
+        }
     }
     
     func unloadModel() async {

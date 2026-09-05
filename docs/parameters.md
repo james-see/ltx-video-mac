@@ -27,6 +27,9 @@ The app supports multiple LTX-2 models running on MLX (Apple's machine learning 
 | LTX-2 Unified (`notapalindrome/ltx2-mlx-av`) | 19B | ~42GB | Standard | Original unified model |
 | LTX-2.3 Unified Beta (`notapalindrome/ltx23-mlx-av`) | 19B | ~48GB | BigVGAN | Distilled beta model |
 | LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`) | 19B (Q4) | ~22GB | BigVGAN | Quantized, smaller download; default for new installs |
+| LTX-2.5 Distilled (`mlx-community/ltx-2.5-mlx`) | 22B | ~100GB | BigVGAN | Gemma 4 bundled; `ltx-2-mlx` 0.15+; 8 steps |
+| LTX-2.5 Distilled Q8 DiT | 22B (Q8 DiT) | ~100GB + ~21GB | BigVGAN | `--dit mlx-community/ltx-2.5-mlx-ditq8` |
+| MiniMax H3 (`MiniMaxAI/MiniMax-H3`) | 33B | ~144GB | H3 audio VAE | Native `h3.c`; 24 fps; frames snap to 5+17n |
 
 Both models use a 2-stage pipeline:
 1. **Stage 1:** Generate at half resolution
@@ -114,7 +117,7 @@ Number of denoising steps per stage.
 |:--------|:------|:--------|
 | Steps | 8-50 | 28 |
 
-Current catalog models (LTX-2 Unified, LTX-2.3 Unified, LTX-2.3 Distilled Q4) use Lightricks' distilled sigma schedule: 8 stage-1 steps + 3 stage-2 steps (11 total). The inference-steps slider is ignored for these models. A future full/SFT catalog entry can use a real step range.
+LTX-2 / 2.3 catalog models use Lightricks' distilled sigma schedule: 8 stage-1 steps + 3 stage-2 steps (11 total). LTX-2.5 distilled is a fixed 8-step schedule (CFG=1). H3 uses Fast / Default / Reference presets (`4/50/1`, `20/45/2`, `50/50/1`). The inference-steps slider is ignored for the LTX distilled catalogs.
 
 ### Guidance Scale
 

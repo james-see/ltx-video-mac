@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct PreferencesView: View {
@@ -12,6 +13,11 @@ struct PreferencesView: View {
     @AppStorage("saveAudioTrackSeparately") private var saveAudioTrackSeparately = false
     /// When true, always prepend ~/projects/mlx-video-with-audio to PYTHONPATH if present (dev override).
     @AppStorage("useLocalMlxVideoRepo") private var useLocalMlxVideoRepo = false
+    @AppStorage("useLocalLtx2MlxRepo") private var useLocalLtx2MlxRepo = false
+    @AppStorage("ltx2MlxLowRam") private var ltx2MlxLowRam = false
+    @AppStorage(H3Engine.binaryPathKey) private var h3BinaryPath = ""
+    @AppStorage(H3Engine.modelDirectoryKey) private var h3ModelDirectory = ""
+    @AppStorage(H3Engine.licenseAcceptedKey) private var h3LicenseAccepted = false
     @AppStorage(LTXModelCatalog.selectedModelIDKey) private var selectedModelID = LTXModelCatalog.defaultModelID
     @AppStorage(LTXTextEncoderCatalog.selectedTextEncoderIDKey) private var selectedTextEncoderID = LTXTextEncoderCatalog.defaultTextEncoderID
     @AppStorage(LTXTextEncoderCatalog.customTextEncoderRepoKey) private var customTextEncoderRepo = ""
@@ -240,6 +246,16 @@ struct PreferencesView: View {
                     )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                    Toggle("Use local ltx-2-mlx repo (LTX-2.5)", isOn: $useLocalLtx2MlxRepo)
+                    Text("When on, LTX-2.5 runs `uv run ltx-2-mlx` from ~/projects/ltx-2-mlx. Otherwise the app looks for a pip-installed `ltx-2-mlx` console script in the selected venv.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Toggle("Force ltx-2-mlx --low-ram", isOn: $ltx2MlxLowRam)
+                    Text("Block-stream transformer weights. Also turns on automatically when this Mac has less RAM than the selected 2.5 model's recommendation.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
                 
                 Section("Model") {
@@ -273,54 +289,115 @@ struct PreferencesView: View {
                         }
                     }
 
-                    Picker("Text Encoder", selection: $selectedTextEncoderID) {
-                        ForEach(LTXTextEncoderCatalog.all) { textEncoder in
-                            Text("\(textEncoder.displayName) (\(textEncoder.downloadSize))").tag(textEncoder.id)
+                    if selectedModel.usesExternalTextEncoder {
+                        Picker("Text Encoder", selection: $selectedTextEncoderID) {
+                            ForEach(LTXTextEncoderCatalog.all.filter { LTXTextEncoderCatalog.selectableEncoderIDs.contains($0.id) }) { textEncoder in
+                                Text("\(textEncoder.displayName) (\(textEncoder.downloadSize))").tag(textEncoder.id)
+                            }
                         }
-                    }
-                    .pickerStyle(.menu)
+                        .pickerStyle(.menu)
 
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "textformat.abc")
-                            .foregroundStyle(.blue)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(selectedTextEncoder.displayName)
-                                .font(.caption.bold())
-                            Text("Uses \(selectedTextEncoder.repo) for generation prompt encoding.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            if let tips = selectedTextEncoder.tips {
-                                Text(tips)
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "textformat.abc")
+                                .foregroundStyle(.blue)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(selectedTextEncoder.displayName)
+                                    .font(.caption.bold())
+                                Text("Uses \(selectedTextEncoder.repo) for generation prompt encoding.")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let tips = selectedTextEncoder.tips {
+                                    Text(tips)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .padding(.vertical, 4)
+
+                        if let qualityWarning = selectedTextEncoder.qualityWarning {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text(qualityWarning)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        if selectedTextEncoderID == "custom" {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Custom text encoder repo (Hugging Face id)")
+                                    .font(.caption.bold())
+                                TextField("e.g. mlx-community/gemma-3-12b-it-4bit", text: $customTextEncoderRepo)
+                                    .textFieldStyle(.roundedBorder)
+                                Text("The app does not download weights until you run a generation. Use any MLX-compatible Gemma repo your Python environment supports.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    } else if selectedModel.backend == .ltx2Mlx {
+                        Text("Gemma 4 12B is bundled in the LTX-2.5 pack. The Gemma 3 text-encoder picker does not apply.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else if selectedModel.backend == .h3c {
+                        Text("H3 uses the Qwen3-VL encoder inside the MiniMax-H3 snapshot. The Gemma 3 text-encoder picker does not apply.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let minRAM = selectedModel.minRecommendedRAMGB {
+                        let physGB = Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
+                        if physGB < minRAM {
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundStyle(.orange)
+                                Text("This model recommends \(minRAM)GB+ RAM. This Mac reports about \(physGB)GB.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
                     }
-                    .padding(.vertical, 4)
-
-                    if let qualityWarning = selectedTextEncoder.qualityWarning {
-                        HStack(alignment: .top, spacing: 8) {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
-                            Text(qualityWarning)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
-                    if selectedTextEncoderID == "custom" {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Custom text encoder repo (Hugging Face id)")
-                                .font(.caption.bold())
-                            TextField("e.g. mlx-community/gemma-3-12b-it-4bit", text: $customTextEncoderRepo)
-                                .textFieldStyle(.roundedBorder)
-                            Text("The app does not download weights until you run a generation. Use any MLX-compatible Gemma repo your Python environment supports.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
                     
                     Toggle("Auto-load model on startup", isOn: $autoLoadModel)
+                }
+
+                if selectedModel.backend == .h3c {
+                    Section("MiniMax H3 (h3.c)") {
+                        Toggle("I accept the MiniMax H3 Community License", isOn: $h3LicenseAccepted)
+                        Text(H3Engine.licenseNotice())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            Button("Read license") {
+                                H3Engine.openLicenseText()
+                            }
+                            Button("Model card") {
+                                H3Engine.openLicensePage()
+                            }
+                            Button("Territory authorization") {
+                                NSWorkspace.shared.open(H3Engine.licenseRequestURL)
+                            }
+                        }
+
+                        HStack {
+                            TextField("h3 binary path", text: $h3BinaryPath)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Browse...") { selectH3Binary() }
+                        }
+                        Text("Discovery order: this path, then ~/projects/h3.c/h3, then `which h3`. Build with: git clone https://github.com/antirez/h3.c && make -j8")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack {
+                            TextField("H3 model directory", text: $h3ModelDirectory)
+                                .textFieldStyle(.roundedBorder)
+                            Button("Browse...") { selectH3ModelDirectory() }
+                        }
+                        Text("Optional override. Leave empty to use ~/MiniMax-H3, the Hugging Face cache, or auto-download MiniMaxAI/MiniMax-H3 (~144GB) on first generate.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 
                 Section("Storage") {
@@ -401,8 +478,8 @@ struct PreferencesView: View {
 
                 Section("Prompt Enhancement") {
                     Toggle("Enable Prompt Enhancement", isOn: $enableGemmaPromptEnhancement)
-                        .help("When on, Gemma rewrites your prompt with vivid details (lighting, camera, audio) before generation. Use Preview in the prompt view to see the enhanced prompt first.")
-                    Text("Uses Gemma to rewrite prompts with vivid details for better video generation. First run downloads ~7GB. If enhancement fails, generation automatically continues with your original prompt.")
+                        .help("When on, Gemma rewrites your prompt with vivid details (lighting, camera, audio) before generation. LTX-2.5 uses ltx-2-mlx --enhance-prompt instead of the Gemma 3 preview path. H3 ignores this toggle.")
+                    Text("LTX-2/2.3: Gemma 3 rewrite (preview in the prompt pane). LTX-2.5: passed as --enhance-prompt to ltx-2-mlx. H3: ignored.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -598,6 +675,30 @@ struct PreferencesView: View {
 
         if panel.runModal() == .OK, let url = panel.url {
             huggingFaceCacheDirectory = url.path
+        }
+    }
+
+    private func selectH3Binary() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.message = "Select the compiled h3 binary"
+        panel.prompt = "Select"
+        if panel.runModal() == .OK, let url = panel.url {
+            h3BinaryPath = url.path
+        }
+    }
+
+    private func selectH3ModelDirectory() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.message = "Select a MiniMax-H3 snapshot directory"
+        panel.prompt = "Select"
+        if panel.runModal() == .OK, let url = panel.url {
+            h3ModelDirectory = url.path
         }
     }
 

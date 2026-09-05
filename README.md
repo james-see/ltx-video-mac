@@ -30,7 +30,7 @@ A beautiful, native macOS application for generating AI videos with synchronized
 - **Apple Silicon** Mac (M1, M2, M3, M4 series)
 - **32GB RAM** minimum (64GB+ recommended for higher resolutions)
 - **Python 3.10+** installed (via Homebrew, pyenv, or system)
-- **~20-42GB disk space** for model weights (depends on selected model)
+- **~20-144GB disk space** for model weights (depends on selected model; H3 is ~144GB)
 
 ## Installation
 
@@ -72,6 +72,9 @@ Progress is shown in the app during download.
 - LTX-2 Unified (`notapalindrome/ltx2-mlx-av`, ~42GB)
 - LTX-2.3 Unified Beta (`notapalindrome/ltx23-mlx-av`, ~48GB)
 - LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`, ~22GB, default for new installs)
+- LTX-2.5 Distilled bf16 (`mlx-community/ltx-2.5-mlx`, ~100GB, `ltx-2-mlx` 0.15+)
+- LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + `--dit mlx-community/ltx-2.5-mlx-ditq8`)
+- MiniMax H3 (`MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c` binary)
 
 ## Usage
 
@@ -107,6 +110,8 @@ curl -X POST http://127.0.0.1:8420/generate \
 ```
 
 Omit `source_image_path` for text-to-video generation. The source image path is resolved and validated before the request is queued.
+
+Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`. `text_encoder_id` is ignored for 2.5 and H3.
 
 ### Gemma Prompt Enhancement
 

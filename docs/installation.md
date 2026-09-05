@@ -42,7 +42,8 @@ The app will search common locations including Homebrew, pyenv, conda, and syste
 Click **Validate Setup** to check for required packages:
 - `mlx` - Apple's machine learning framework
 - `mlx-vlm` - Vision-language models for MLX
-- `mlx-video-with-audio` - Unified audio-video generation (LTX-2)
+- `mlx-video-with-audio` - Unified audio-video generation (LTX-2 / 2.3)
+- `ltx-2-mlx` - LTX-2.5 only (git install, not required for 2.3)
 - `transformers` - Hugging Face transformers
 - `safetensors` - Fast tensor serialization
 - `huggingface_hub` - Model downloading
@@ -66,6 +67,31 @@ pip install mlx mlx-vlm mlx-video-with-audio transformers safetensors huggingfac
 
 {: .note }
 If using a virtual environment, make sure to activate it first, or point the app to the venv's Python executable.
+
+## LTX-2.5 (`ltx-2-mlx`)
+
+LTX-2.5 is opt-in and is **not** installed for 2.3-only users. When you select a 2.5 model, the app tries to pip-install from git into the venv:
+
+```bash
+pip install \
+  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-core-mlx" \
+  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-pipelines-mlx" \
+  "mlx-lm>=0.31.2"
+```
+
+Or clone to `~/projects/ltx-2-mlx`, run `uv sync --all-extras`, and enable **Use local ltx-2-mlx repo** in Preferences.
+
+## MiniMax H3 (`h3.c`)
+
+H3 does not use Python. Build the binary yourself (not bundled in the DMG):
+
+```bash
+git clone https://github.com/antirez/h3.c
+cd h3.c
+make -j8
+```
+
+Put `./h3` at `~/projects/h3.c/h3`, on `PATH`, or set **h3 binary path** in Preferences. Selecting H3 (or the first Generate) shows an Accept / Read license dialog for the MiniMax H3 Community License. Weights then download automatically into the Hugging Face cache (`MiniMaxAI/MiniMax-H3`, ~144GB). Override with **H3 model directory** if you already have a snapshot. If the repo is gated, run `hf auth login` first. US/EU/UK/KR users may need [territory authorization](https://platform.minimax.io/h3-license).
 
 ## First Run - Model Download
 
@@ -94,6 +120,8 @@ Models are cached by Hugging Face in folders such as:
 ```
 ~/.cache/huggingface/hub/models--notapalindrome--ltx2-mlx-av/
 ~/.cache/huggingface/hub/models--dgrauet--ltx-2.3-mlx-distilled-q4/
+~/.cache/huggingface/hub/models--mlx-community--ltx-2.5-mlx/
+~/.cache/huggingface/hub/models--MiniMaxAI--MiniMax-H3/
 ```
 
 To store new downloads on another disk:
