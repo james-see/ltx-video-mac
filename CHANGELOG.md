@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.70] - 2026-09-05
+
+### Fixed
+- LTX-2.5 auto-install of `ltx-2-mlx` no longer inherits `PYTHONHOME` from the app process (venv `sys.prefix` is not a valid home; pip died with `No module named 'encodings'`).
+
 ## [2.3.69] - 2026-09-05
 
 ### Added
