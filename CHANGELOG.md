@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.71] - 2026-09-05
+
+### Fixed
+- LTX-2.5 `ltx-2-mlx generate` now passes required `--frame-rate` (CLI rejected the job immediately).
+
 ## [2.3.70] - 2026-09-05
 
 ### Fixed
