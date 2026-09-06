@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.72] - 2026-09-05
+
+### Fixed
+- LTX-2.5 no longer reports a false "memory pressure" kill when generate fails (UUID `-9…` matched SIGKILL).
+- LTX-2.5 DurationHead load: skip the 0.15.2 fused-`in_proj` mismatch on `mlx-community/ltx-2.5-mlx` (weights already complete; we pass `--frames`).
+- Resume incomplete Hugging Face snapshots before generate; raise the 2.5 subprocess timeout to 4 hours.
+
 ## [2.3.71] - 2026-09-05
 
 ### Fixed
