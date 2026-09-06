@@ -104,11 +104,12 @@ class LTXBridge {
             return metalInteractivityUserHint
         }
 
+        // Do not match a bare "-9" — UUIDs like -9996 plus a RuntimeError traceback
+        // were misread as jetsam after LTX-2.5 DurationHead KeyError.
         let looksLikeSigKill = low.contains("sigkill")
-            || low.contains("code -9")
-            || low.contains("signal 9")
+            || low.contains("exit code -9")
             || low.contains("killed by signal 9")
-            || (low.contains("runtimeerror") && low.contains("-9"))
+            || low.contains("terminated by signal 9")
         if looksLikeSigKill || exitCode == 137 || exitCode == 9 {
             return jetsamSigKillUserHint(modelRepo: model, textEncoderRepo: enc)
         }
@@ -1010,10 +1011,33 @@ try:
             "'Use local ltx-2-mlx repo' in Preferences."
         )
 
-    cmd = resolve_prefix() + [
-        "generate",
+    # Resume incomplete HF blobs; no-op when the snapshot is already complete.
+    log(f"Ensuring snapshot {model_repo} (resumes incomplete files)...")
+    from huggingface_hub import snapshot_download
+    model_path = snapshot_download(repo_id=model_repo)
+    log(f"Model snapshot ready: {model_path}")
+
+    # mlx-community LTX-2.5 already ships split q/k/v DurationHead keys.
+    # ltx-2-mlx 0.15.2 still expects fused in_proj_* and KeyErrors in __init__.
+    # We pass --frames, so auto-duration is unused.
+    runner = (
+        "import sys\\n"
+        "from ltx_pipelines_mlx.utils.blocks import DurationPredictor\\n"
+        "_orig = DurationPredictor.from_checkpoint\\n"
+        "def _safe(model_dir):\\n"
+        "    try:\\n"
+        "        return _orig(model_dir)\\n"
+        "    except Exception as e:\\n"
+        "        print('DurationHead skipped (%s: %s); using --frames' % (type(e).__name__, e), file=sys.stderr, flush=True)\\n"
+        "        return None\\n"
+        "DurationPredictor.from_checkpoint = classmethod(lambda cls, model_dir: _safe(model_dir))\\n"
+        "from ltx_pipelines_mlx.cli import main\\n"
+        "sys.argv = ['ltx-2-mlx'] + sys.argv[1:]\\n"
+        "raise SystemExit(main() or 0)\\n"
+    )
+    cmd = [sys.executable, "-c", runner, "generate"] + [
         "--prompt", prompt,
-        "--model", model_repo,
+        "--model", model_path,
         "--distilled",
         "-H", str(\(genHeight)),
         "-W", str(\(genWidth)),
@@ -1113,7 +1137,7 @@ except Exception as e:
         progressHandler(0.05, "Running ltx-2-mlx generation...")
         let output = try await runPython(
             script: script,
-            timeout: 3600,
+            timeout: 14400,
             generationDiagnostics: (modelRepo: modelRepo, textEncoderRepo: "gemma4-bundled")
         ) { stderrChunk in
             let lines = stderrChunk.replacingOccurrences(of: "\r", with: "\n")
