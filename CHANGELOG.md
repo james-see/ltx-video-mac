@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.75] - 2026-09-05
+
+### Added
+- **LTX-2.3 12GB RAM Optimized** (`ltx23_12gb`, `baa-ai/LTX-2.3-22B-RAM-12GB-MLX`, ~19GB) via `ltx-2-mlx` with mixed-precision load. New installs on ≤16GB Macs default to this model and Gemma 12B 4-bit. Existing preferences are unchanged.
+
 ## [2.3.74] - 2026-09-05
 
 ### Fixed
