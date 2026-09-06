@@ -935,7 +935,10 @@ except Exception as e:
         let forceLowRam = UserDefaults.standard.bool(forKey: "ltx2MlxLowRam")
         let physGB = Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
         let autoLowRam = selectedModel.minRecommendedRAMGB.map { physGB < $0 } ?? false
-        let useLowRam = forceLowRam || autoLowRam
+        let useLowRam = forceLowRam || autoLowRam || selectedModel.id == LTXModelCatalog.lowRAMModelID
+        let gemmaRepo = selectedModel.usesExternalTextEncoder
+            ? LTXTextEncoderCatalog.resolvedTextEncoder(id: request.textEncoderId).repo
+            : ""
 
         let genWidth = (params.width / 64) * 64
         let genHeight = (params.height / 64) * 64
@@ -984,6 +987,7 @@ try:
     output_path = "\(outputPath)"
     model_repo = "\(modelRepo)"
     dit_repo = "\(ditRepo)"
+    gemma_repo = "\(gemmaRepo)"
     image_path = "\(imagePath)"
     local_repo = os.path.expanduser("~/projects/ltx-2-mlx")
     use_local = \(useLocalLtx2 ? "True" : "False") and os.path.isdir(local_repo)
@@ -1041,6 +1045,9 @@ try:
     if dit_repo:
         # v0.15.2 generate has no --dit; keep the pack default transformer.
         log(f"Skipping DiT override {dit_repo}: this ltx-2-mlx generate does not accept --dit")
+    if gemma_repo:
+        cmd.extend(["--gemma", gemma_repo])
+        log(f"Gemma text encoder: {gemma_repo}")
     if image_path:
         cmd.extend(["--image", image_path])
         log(f"I2V image: {image_path}")

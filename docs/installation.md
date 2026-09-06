@@ -68,9 +68,9 @@ pip install mlx mlx-vlm mlx-video-with-audio transformers safetensors huggingfac
 {: .note }
 If using a virtual environment, make sure to activate it first, or point the app to the venv's Python executable.
 
-## LTX-2.5 (`ltx-2-mlx`)
+## LTX-2.5 and LTX-2.3 12GB (`ltx-2-mlx`)
 
-LTX-2.5 is opt-in and is **not** installed for 2.3-only users. When you select a 2.5 model, the app tries to pip-install from git into the venv:
+`ltx-2-mlx` is opt-in and is **not** installed for `mlx-video-with-audio`-only users. When you select LTX-2.5 or **LTX-2.3 12GB RAM Optimized**, the app tries to pip-install from git into the venv:
 
 ```bash
 pip install \
@@ -112,6 +112,7 @@ Models are cached by Hugging Face in folders such as:
 ```
 ~/.cache/huggingface/hub/models--notapalindrome--ltx2-mlx-av/
 ~/.cache/huggingface/hub/models--dgrauet--ltx-2.3-mlx-distilled-q4/
+~/.cache/huggingface/hub/models--baa-ai--LTX-2.3-22B-RAM-12GB-MLX/
 ~/.cache/huggingface/hub/models--mlx-community--ltx-2.5-mlx/
 ~/.cache/huggingface/hub/models--MiniMaxAI--MiniMax-H3/
 ```

@@ -19,6 +19,7 @@ struct LTXModel: Identifiable, Codable, Hashable {
     let backend: GenerationBackend
     let minRecommendedRAMGB: Int?
     let ditRepo: String?
+    let usesBundledGemma4: Bool
 
     var recommendedSteps: ClosedRange<Int>? {
         guard let lo = recommendedStepsLower, let hi = recommendedStepsUpper else { return nil }
@@ -26,13 +27,17 @@ struct LTXModel: Identifiable, Codable, Hashable {
     }
 
     var usesExternalTextEncoder: Bool {
-        backend == .mlxVideoWithAudio
+        switch backend {
+        case .mlxVideoWithAudio: return true
+        case .ltx2Mlx: return !usesBundledGemma4
+        case .h3c: return false
+        }
     }
 
     var bundledTextEncoderId: String? {
         switch backend {
         case .mlxVideoWithAudio: return nil
-        case .ltx2Mlx: return "gemma4_12b_pack"
+        case .ltx2Mlx: return usesBundledGemma4 ? "gemma4_12b_pack" : nil
         case .h3c: return "h3_qwen3_vl"
         }
     }
@@ -53,7 +58,8 @@ struct LTXModel: Identifiable, Codable, Hashable {
         tips: String?,
         backend: GenerationBackend = .mlxVideoWithAudio,
         minRecommendedRAMGB: Int? = nil,
-        ditRepo: String? = nil
+        ditRepo: String? = nil,
+        usesBundledGemma4: Bool = false
     ) {
         self.id = id
         self.repo = repo
@@ -67,12 +73,13 @@ struct LTXModel: Identifiable, Codable, Hashable {
         self.backend = backend
         self.minRecommendedRAMGB = minRecommendedRAMGB
         self.ditRepo = ditRepo
+        self.usesBundledGemma4 = usesBundledGemma4
     }
 
     enum CodingKeys: String, CodingKey {
         case id, repo, displayName, downloadSize, supportsBuiltInAudio
         case qualityWarning, recommendedStepsLower, recommendedStepsUpper, tips
-        case backend, minRecommendedRAMGB, ditRepo
+        case backend, minRecommendedRAMGB, ditRepo, usesBundledGemma4
     }
 
     init(from decoder: Decoder) throws {
@@ -89,6 +96,7 @@ struct LTXModel: Identifiable, Codable, Hashable {
         backend = try c.decodeIfPresent(GenerationBackend.self, forKey: .backend) ?? .mlxVideoWithAudio
         minRecommendedRAMGB = try c.decodeIfPresent(Int.self, forKey: .minRecommendedRAMGB)
         ditRepo = try c.decodeIfPresent(String.self, forKey: .ditRepo)
+        usesBundledGemma4 = try c.decodeIfPresent(Bool.self, forKey: .usesBundledGemma4) ?? false
     }
 }
 
@@ -103,8 +111,26 @@ struct LTXTextEncoder: Identifiable, Codable, Hashable {
 
 enum LTXModelCatalog {
     static let selectedModelIDKey = "selectedModelID"
-    // Prefer the smaller LTX-2.3 Q4 model for new installs; existing user preferences still win.
-    static let defaultModelID = "ltx23_distilled_q4"
+    static let lowRAMModelID = "ltx23_12gb"
+    static let lowRAMThresholdGB = 16
+
+    static var physicalMemoryGB: Int {
+        Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
+    }
+
+    static var isLowRAMMac: Bool {
+        physicalMemoryGB <= lowRAMThresholdGB
+    }
+
+    /// New installs only (`@AppStorage` / UserDefaults when the key is unset).
+    static var defaultModelID: String {
+        isLowRAMMac ? lowRAMModelID : "ltx23_distilled_q4"
+    }
+
+    static func lowRAMRecommendationBanner(selectedModelID: String) -> String? {
+        guard isLowRAMMac, selectedModelID != lowRAMModelID else { return nil }
+        return "Your Mac has ~\(physicalMemoryGB)GB RAM. The baa-ai 12GB-optimized model is recommended for best results on your system."
+    }
 
     static let all: [LTXModel] = [
         LTXModel(
@@ -141,6 +167,19 @@ enum LTXModelCatalog {
             tips: "Distilled schedule is fixed at 8 stage-1 + 3 stage-2 steps (11 total). The inference-steps slider is ignored. Uses ~30GB RAM vs ~50GB for bf16."
         ),
         LTXModel(
+            id: "ltx23_12gb",
+            repo: "baa-ai/LTX-2.3-22B-RAM-12GB-MLX",
+            displayName: "LTX-2.3 12GB RAM Optimized (Beta)",
+            downloadSize: "~19GB",
+            supportsBuiltInAudio: true,
+            qualityWarning: "Optimized for low-RAM Macs (16GB). May have quality tradeoffs vs bf16 models.",
+            recommendedStepsLower: 8,
+            recommendedStepsUpper: 8,
+            tips: "Mixed-precision distilled pack via ltx-2-mlx. Vendor claims ~14GB unified memory. Default for new installs on ≤16GB Macs.",
+            backend: .ltx2Mlx,
+            minRecommendedRAMGB: 16
+        ),
+        LTXModel(
             id: "ltx25_distilled",
             repo: "mlx-community/ltx-2.5-mlx",
             displayName: "LTX-2.5 Distilled (bf16)",
@@ -151,7 +190,8 @@ enum LTXModelCatalog {
             recommendedStepsUpper: 8,
             tips: "LTX-2.5 distilled uses a fixed 8-step schedule. Gemma 4 encoder is inside the pack. Requires ltx-2-mlx 0.15+.",
             backend: .ltx2Mlx,
-            minRecommendedRAMGB: 64
+            minRecommendedRAMGB: 64,
+            usesBundledGemma4: true
         ),
         LTXModel(
             id: "ltx25_distilled_ditq8",
@@ -165,7 +205,8 @@ enum LTXModelCatalog {
             tips: "Same 2.5 pack with --dit mlx-community/ltx-2.5-mlx-ditq8. Do not confuse with the -q8 text-encoder repo.",
             backend: .ltx2Mlx,
             minRecommendedRAMGB: 32,
-            ditRepo: "mlx-community/ltx-2.5-mlx-ditq8"
+            ditRepo: "mlx-community/ltx-2.5-mlx-ditq8",
+            usesBundledGemma4: true
         ),
         LTXModel(
             id: "minimax_h3",
@@ -209,8 +250,10 @@ enum LTXTextEncoderCatalog {
     static let selectedTextEncoderIDKey = "selectedTextEncoderID"
     /// When the "Custom" preset is selected, this repo id is passed as `--text-encoder-repo`.
     static let customTextEncoderRepoKey = "customTextEncoderRepo"
-    // Match upstream mlx-video-with-audio default unless the user explicitly opts into Q4.
-    static let defaultTextEncoderID = "gemma3_12b_bf16"
+    // 12B bf16 unless this is a new install on a ≤16GB Mac.
+    static var defaultTextEncoderID: String {
+        LTXModelCatalog.isLowRAMMac ? "gemma3_12b_4bit" : "gemma3_12b_bf16"
+    }
 
     static let all: [LTXTextEncoder] = [
         LTXTextEncoder(

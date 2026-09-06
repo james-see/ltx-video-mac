@@ -63,6 +63,16 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 
 ## Supported Models
 
+### baa-ai/LTX-2.3-22B-RAM-12GB-MLX (LTX-2.3 12GB)
+
+| Property | Value |
+|:---------|:------|
+| Backend | `ltx2Mlx` (`ltx-2-mlx generate --distilled --low-ram --gemma …`) |
+| Download size | ~19GB mixed-precision pack |
+| Steps | Fixed 8, CFG=1 |
+| Text encoder | External Gemma 3 (`--gemma`; default 12B 4-bit on ≤16GB Macs) |
+| Notes | Per-layer 2–8 bit quant via the generate adapter. Vendor claims ~14GB unified memory; not verified here. Default catalog pick for new installs on ≤16GB. |
+
 ### mlx-community/ltx-2.5-mlx (LTX-2.5 Distilled)
 
 | Property | Value |

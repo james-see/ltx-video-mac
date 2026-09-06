@@ -253,7 +253,7 @@ struct PreferencesView: View {
                         .foregroundStyle(.secondary)
 
                     Toggle("Force ltx-2-mlx --low-ram", isOn: $ltx2MlxLowRam)
-                    Text("Block-stream transformer weights. Also turns on automatically when this Mac has less RAM than the selected 2.5 model's recommendation.")
+                        Text("Block-stream transformer weights. Always on for the 12GB RAM pack. Also turns on when this Mac has less RAM than the selected ltx-2-mlx model's recommendation.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -336,7 +336,7 @@ struct PreferencesView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                    } else if selectedModel.backend == .ltx2Mlx {
+                    } else if selectedModel.usesBundledGemma4 {
                         Text("Gemma 4 12B is bundled in the LTX-2.5 pack. The Gemma 3 text-encoder picker does not apply.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
@@ -344,6 +344,16 @@ struct PreferencesView: View {
                         Text("H3 uses the Qwen3-VL encoder inside the MiniMax-H3 snapshot. The Gemma 3 text-encoder picker does not apply.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+
+                    if let lowRAMHint = LTXModelCatalog.lowRAMRecommendationBanner(selectedModelID: selectedModelID) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: "memorychip")
+                                .foregroundStyle(.orange)
+                            Text(lowRAMHint)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
 
                     if let minRAM = selectedModel.minRecommendedRAMGB {

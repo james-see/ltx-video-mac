@@ -73,7 +73,8 @@ Progress is shown in the app during download.
 **Available models:**
 - LTX-2 Unified (`notapalindrome/ltx2-mlx-av`, ~42GB)
 - LTX-2.3 Unified Beta (`notapalindrome/ltx23-mlx-av`, ~48GB)
-- LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`, ~22GB, default for new installs)
+- LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`, ~22GB, default except ≤16GB Macs)
+- LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`, ~19GB, `ltx-2-mlx`; default on ≤16GB)
 - LTX-2.5 Distilled bf16 (`mlx-community/ltx-2.5-mlx`, ~100GB, `ltx-2-mlx` 0.15+)
 - LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + `--dit mlx-community/ltx-2.5-mlx-ditq8`)
 - MiniMax H3 (`MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c` binary)
@@ -253,7 +254,8 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
 - **Models**:
   - [LTX-2 Unified](https://huggingface.co/notapalindrome/ltx2-mlx-av) (~42GB, `mlx-video-with-audio`)
   - [LTX-2.3 Unified Beta](https://huggingface.co/notapalindrome/ltx23-mlx-av) (~48GB)
-  - [LTX-2.3 Distilled Q4](https://huggingface.co/notapalindrome/ltx23-mlx-av-q4) (~22GB, default)
+  - [LTX-2.3 Distilled Q4](https://huggingface.co/notapalindrome/ltx23-mlx-av-q4) (~22GB, default except ≤16GB)
+  - [LTX-2.3 12GB RAM Optimized](https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX) (~19GB, `ltx-2-mlx`, mixed-precision)
   - [LTX-2.5 Distilled](https://huggingface.co/mlx-community/ltx-2.5-mlx) (~100GB, `ltx-2-mlx` 0.15+, Gemma 4 bundled)
   - [LTX-2.5 Distilled Q8 DiT](https://huggingface.co/mlx-community/ltx-2.5-mlx-ditq8) (same pack + DiT overlay)
   - [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) (~144GB, native [h3.c](https://github.com/antirez/h3.c))
@@ -261,7 +263,7 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
 
 ### Architecture
 
-LTX-2 / 2.3 use a 2-stage pipeline (half-res then refine). LTX-2.5 distilled is a fixed 8-step pass. H3 runs `./h3` (24 fps, frames snap to `5+17n`). See [Architecture](docs/architecture.md).
+LTX-2 / 2.3 `notapalindrome` packs use a 2-stage pipeline (half-res then refine). ltx-2-mlx distilled (2.5 and the 12GB pack) is a fixed 8-step pass. H3 runs `./h3` (24 fps, frames snap to `5+17n`). See [Architecture](docs/architecture.md).
 
 ## Troubleshooting
 

@@ -120,7 +120,7 @@ struct ParametersView: View {
                                     .foregroundStyle(.blue)
                                 Text(range.lowerBound == range.upperBound
                                     ? (selectedModel.backend == .ltx2Mlx
-                                        ? "Fixed \(range.lowerBound) steps (distilled). Slider is ignored."
+                                        ? "Fixed \(range.lowerBound) steps (ltx-2-mlx distilled). Slider is ignored."
                                         : "Fixed \(range.lowerBound) steps (8 + 3). Slider is ignored.")
                                     : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
                                     .font(.caption2)
@@ -139,7 +139,7 @@ struct ParametersView: View {
                             format: "%.1f"
                         )
                     } else if selectedModel.backend == .ltx2Mlx {
-                        Text("LTX-2.5 distilled uses CFG=1. Guidance scale is ignored.")
+                        Text("ltx-2-mlx distilled uses CFG=1. Guidance scale is ignored.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }

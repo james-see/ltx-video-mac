@@ -89,6 +89,10 @@ struct PromptInputView: View {
         return "This request may hit Metal memory limits (estimated ~\(estimatedMemoryGB)GB on a ~\(machineMemoryGB)GB machine). Recommended retry settings: 512x320 resolution, 25/33/49 frames, 24 FPS.\(tilingHint)"
     }
 
+    private var lowRAMModelRecommendation: String? {
+        LTXModelCatalog.lowRAMRecommendationBanner(selectedModelID: selectedModelID)
+    }
+
     /// Non-blocking preflight: very large bf16 stacks on small unified-memory Macs (#53).
     private var heavyEncoderCombinationWarning: String? {
         let physGB = Int(MacOSSystemMemory.physicalMemoryBytes / 1_073_741_824)
@@ -224,7 +228,7 @@ struct PromptInputView: View {
                     .disabled(!enableGemmaPromptEnhancement)
                     
                     if enableGemmaPromptEnhancement {
-                        if selectedModel.backend == .ltx2Mlx {
+                        if selectedModel.usesBundledGemma4 {
                             Text("LTX-2.5 enhancement is applied as --enhance-prompt inside ltx-2-mlx (Gemma 4). The Gemma 3 preview button does not apply.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
@@ -645,6 +649,23 @@ struct PromptInputView: View {
                 }
             }
             
+            if let lowRAMHint = lowRAMModelRecommendation {
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "memorychip")
+                        .foregroundStyle(.orange)
+                    Text(lowRAMHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.orange.opacity(0.08))
+                )
+            }
+
             if let heavyHint = heavyEncoderCombinationWarning, !dismissedHeavyEncoderComboHint {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""ltx-2-mlx generate wrapper for mlx-community/ltx-2.5-mlx.
+"""ltx-2-mlx generate wrapper for community LTX packs.
 
 dgrauet 0.15.2 only treats a pack as Gemma 4 when text_encoder.safetensors
-sits at the snapshot root. The community pack ships the tower as mlx-lm
-layout under gemma4-12b-ltx-v1/. Without this adapter, generate falls back
-to Gemma 3 4-bit into a Gemma-4 connector (wrong scene, not a weak follow).
+sits at the snapshot root. mlx-community/ltx-2.5-mlx ships the tower as
+mlx-lm layout under gemma4-12b-ltx-v1/.
+
+baa-ai/LTX-2.3-22B-RAM-12GB-MLX is mixed-precision (2–8 bit). Stock
+apply_quantization uses one bit width; we apply per-layer nn.quantize.
 
 Also skips DurationHead when the pack has split q/k/v keys (0.15.2 expects
 fused in_proj). We always pass --frames.
@@ -13,6 +15,7 @@ fused in_proj). We always pass --frames.
 from __future__ import annotations
 
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 _COMMUNITY_GEMMA = "gemma4-12b-ltx-v1"
@@ -31,6 +34,48 @@ def community_gemma_dir(model_dir: str | Path) -> Path | None:
     return None
 
 
+def apply_mixed_precision_quantization(model, weights, group_size=64, bits=None):
+    """Per-layer mixed-precision quant (baa-ai generate.py). bits is unused."""
+    import mlx.nn as nn
+
+    layer_bits: dict[str, int] = {}
+    for key in weights:
+        if not key.endswith(".scales"):
+            continue
+        layer = key[: -len(".scales")]
+        w_key = layer + ".weight"
+        if w_key not in weights:
+            continue
+        w_cols = weights[w_key].shape[-1]
+        s_cols = weights[key].shape[-1]
+        detected = round(w_cols * 32 / (s_cols * group_size))
+        if detected in (2, 3, 4, 5, 6, 8):
+            layer_bits[layer] = detected
+
+    if not layer_bits:
+        return
+
+    bits_to_layers: dict[int, set] = defaultdict(set)
+    for layer, b in layer_bits.items():
+        bits_to_layers[b].add(layer)
+
+    for quant_bits, layers in sorted(bits_to_layers.items()):
+
+        def _predicate(path: str, module: nn.Module, _layers=layers) -> bool:
+            return path in _layers and isinstance(module, nn.Linear)
+
+        nn.quantize(
+            model, group_size=group_size, bits=quant_bits, class_predicate=_predicate
+        )
+
+    dist = {b: len(v) for b, v in sorted(bits_to_layers.items())}
+    print(
+        "Mixed-precision quantization: %d layers — %s" % (sum(dist.values()), dist),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
 def apply_patches() -> None:
     from ltx_core_mlx.text_encoders.gemma.encoders import encoder_configurator
     from ltx_core_mlx.text_encoders.gemma.encoders.gemma4_encoder import (
@@ -40,6 +85,12 @@ def apply_patches() -> None:
     from ltx_core_mlx.utils import weights as weights_mod
     from ltx_pipelines_mlx.utils import blocks
     from ltx_pipelines_mlx.utils.blocks import DurationPredictor
+    from ltx_pipelines_mlx.utils import _orchestration as orch
+    import ltx_pipelines_mlx._base as ltx_base
+
+    weights_mod.apply_quantization = apply_mixed_precision_quantization
+    orch.apply_quantization = apply_mixed_precision_quantization
+    ltx_base.apply_quantization = apply_mixed_precision_quantization
 
     _orig_select = encoder_configurator.select_text_encoder
 

@@ -35,7 +35,7 @@ SwiftUI app. Generation is a local subprocess: `mlx-video-with-audio` for LTX-2 
 ### Key Features
 
 - **Apple Silicon Native** - MLX for LTX; Metal via `h3.c` for H3
-- **LTX-2, LTX-2.3, LTX-2.5, MiniMax H3** - 2.3 Q4 default (~22GB); 2.5 via `ltx-2-mlx`; H3 via native `h3.c`
+- **LTX-2, LTX-2.3, LTX-2.5, MiniMax H3** - 2.3 Q4 default (~22GB) except ≤16GB Macs (12GB pack); 2.5 / 12GB via `ltx-2-mlx`; H3 via native `h3.c`
 - **Text-to-Video** - Generate videos from text descriptions
 - **Image-to-Video** - Animate images; first/last frame and multi-image keyframes on the LTX path
 - **Local REST API** - `127.0.0.1:8420` (`ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`)
