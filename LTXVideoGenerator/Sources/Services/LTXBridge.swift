@@ -1359,9 +1359,10 @@ print(json.dumps({"snapshot_path": path}))
                     let process = Process()
                     process.executableURL = URL(fileURLWithPath: executable)
                     process.arguments = arguments
+                    let execDir = URL(fileURLWithPath: executable).deletingLastPathComponent()
+                    process.currentDirectoryURL = execDir
                     var env: [String: String] = [:]
-                    let execDir = URL(fileURLWithPath: executable).deletingLastPathComponent().path
-                    env["PATH"] = "\(execDir):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+                    env["PATH"] = "\(execDir.path):/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
                     env["HOME"] = ProcessInfo.processInfo.environment["HOME"] ?? ""
                     env["USER"] = ProcessInfo.processInfo.environment["USER"] ?? ""
                     env["TMPDIR"] = ProcessInfo.processInfo.environment["TMPDIR"] ?? "/tmp"
