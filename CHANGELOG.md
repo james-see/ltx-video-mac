@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.74] - 2026-09-05
+
+### Fixed
+- First MiniMax H3 generate clones and builds `h3.c` when the binary is missing (Application Support). No pre-installed `~/projects/h3.c/h3` required.
+
 ## [2.3.73] - 2026-09-05
 
 ### Fixed
