@@ -24,7 +24,7 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 
 - **mlxVideoWithAudio** — LTX-2 / 2.3 via `python -m mlx_video.generate_av`
 - **ltx2Mlx** — LTX-2.5 via `ltx-2-mlx generate` (dgrauet/ltx-2-mlx 0.15+)
-- **h3c** — MiniMax H3 via the native `h3` binary (antirez/h3.c)
+- **h3c** — MiniMax H3 via the native `h3` binary (`antirez/h3.c` for BF16/Turbo; `h3.c-int8` for Comfy-Org int8)
 
 ```
 ┌──────────────────────────────┐
@@ -84,15 +84,18 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 | Text encoder | Gemma-4-unified inside the pack (`gemma4-12b-ltx-v1/`; adapter maps mlx-lm keys for dgrauet 0.15.2) |
 | Install | Git (`dgrauet/ltx-2-mlx` @ v0.15.2) or `~/projects/ltx-2-mlx` + `uv run`. Not required for 2.3 users. |
 
-### MiniMaxAI/MiniMax-H3 (h3.c)
+### MiniMax H3 (h3.c)
 
 | Property | Value |
 |:---------|:------|
 | Backend | `h3c` (direct `Process` to `./h3`) |
-| Download size | ~144GB snapshot |
-| Engine | antirez/h3.c (MIT); weights are MiniMax H3 Community License |
+| Engine | antirez/h3.c (MIT) for BF16 + Turbo; Shedrackeze002/h3.c-int8 `@200eed4` for int8 |
+| Catalog | `minimax_h3` BF16 ~144GB / `minimax_h3_int8` ~92GB / `minimax_h3_turbo` BF16 + folded LoRA |
+| Weights | MiniMax H3 Community License; Turbo adapter is a derivative |
 | Frames | `5+17n` (22 / 39 / 56 / 107 / 243 / 362), 24 fps |
-| Memory | SSD streaming under 64GB; refuse under 16GB |
+| Memory | SSD streaming under 64GB; refuse under 16GB; int8 DiT peak ~16.8GB |
+
+Out of scope for this app: RobZombAI/H3MLX, maderix/h3.c-ane, QuixiAI/h3.c, mlx-h3, ComfyUI-on-Mac.
 
 ### notapalindrome/ltx2-mlx-av (LTX-2 Unified)
 

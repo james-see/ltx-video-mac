@@ -176,10 +176,11 @@ class LTXBridge {
     func loadModel(progressHandler: @escaping (String) -> Void) async throws {
         let selectedModel = LTXModelCatalog.selectedModel()
         if selectedModel.backend == .h3c {
-            if let binary = H3Engine.resolvedBinary() {
-                progressHandler("h3.c ready (\(binary)). Weights download on first generation (\(selectedModel.downloadSize)).")
+            let variant = H3Variant.from(modelId: selectedModel.id)
+            if let binary = H3Engine.resolvedBinary(for: variant) {
+                progressHandler("\(variant.displayName) ready (\(binary)). Weights download on first generation (\(selectedModel.downloadSize)).")
             } else {
-                progressHandler("h3.c will be cloned and built on first generation. Weights download then too (\(selectedModel.downloadSize)).")
+                progressHandler("\(variant.displayName) will clone/build h3 on first generation. Weights download then too (\(selectedModel.downloadSize)).")
             }
             isModelLoaded = true
             return
@@ -1186,13 +1187,14 @@ except Exception as e:
         guard H3Engine.licenseAccepted else {
             throw LTXError.generationFailed(H3Engine.licenseNotice())
         }
+        let variant = H3Variant.from(modelId: request.modelId)
         let binary: String
-        if let existing = H3Engine.resolvedBinary() {
+        if let existing = H3Engine.resolvedBinary(for: variant) {
             binary = existing
         } else {
-            progressHandler(0.01, "Cloning and building h3.c…")
+            progressHandler(0.01, "Cloning and building \(variant.usesInt8Binary ? "h3.c-int8" : "h3.c")…")
             do {
-                binary = try await H3Engine.ensureBinary { msg in
+                binary = try await H3Engine.ensureBinary(for: variant) { msg in
                     progressHandler(0.01, msg)
                 }
             } catch {
@@ -1200,18 +1202,27 @@ except Exception as e:
             }
         }
         let modelDir: String
-        if let existing = H3Engine.resolvedModelDirectory() {
+        if let existing = H3Engine.resolvedModelDirectory(for: variant) {
             modelDir = existing
         } else {
-            progressHandler(0.02, "Downloading MiniMax-H3 (~144GB) into the model cache…")
-            modelDir = try await downloadH3Snapshot(progressHandler: progressHandler)
+            switch variant {
+            case .bf16:
+                progressHandler(0.02, "Downloading MiniMax-H3 (~144GB) into the model cache…")
+                modelDir = try await downloadH3Snapshot(progressHandler: progressHandler)
+            case .int8:
+                progressHandler(0.02, "Assembling H3 int8 tree (Comfy DiT + MiniMaxAI TE/VAE)…")
+                modelDir = try await assembleH3Int8Tree(progressHandler: progressHandler)
+            case .turbo:
+                progressHandler(0.02, "Preparing H3 Turbo (official BF16 + folded LoRA)…")
+                modelDir = try await assembleH3TurboTree(progressHandler: progressHandler)
+            }
         }
 
         let params = request.parameters
         let seed = params.seed ?? Int.random(in: 0..<Int(Int32.max))
         let frames = H3Engine.snapFrameCount(params.numFrames)
         let (width, height) = H3Engine.clampCanvas(width: params.width, height: params.height)
-        let preset = H3SpeedPreset.from(inferenceSteps: params.numInferenceSteps)
+        let preset = H3SpeedPreset.schedule(for: variant, inferenceSteps: params.numInferenceSteps)
         var args = [
             "-d", modelDir,
             "-p", request.prompt,
@@ -1231,7 +1242,7 @@ except Exception as e:
             args.append(contentsOf: ["--first-frame", image])
         }
 
-        progressHandler(0.1, "Starting H3 (\(preset.displayName), \(width)×\(height), \(frames) frames)...")
+        progressHandler(0.1, "Starting \(variant.displayName) (\(preset.displayName), \(width)×\(height), \(frames) frames)...")
         try await runExternalProcess(
             executable: binary,
             arguments: args,
@@ -1330,14 +1341,294 @@ print(json.dumps({"snapshot_path": path}))
             if let data = jsonString.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let path = json["snapshot_path"] as? String,
-               H3Engine.isModelDirectory(path) {
+               H3Engine.isOfficialSnapshot(path) {
                 return path
             }
         }
-        if let existing = H3Engine.resolvedModelDirectory() {
+        if let existing = H3Engine.resolvedOfficialSnapshot() {
             return existing
         }
         throw LTXError.generationFailed(H3Engine.missingModelHint())
+    }
+
+    private func assembleH3Int8Tree(
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> String {
+        setupPythonPaths()
+        guard pythonExecutable != nil else {
+            throw LTXError.generationFailed(H3Engine.downloadRequiresPythonHint())
+        }
+
+        let dest = H3Engine.int8ModelDirectory
+        let official = H3Engine.resolvedOfficialAuxiliaries() ?? ""
+        let comfyRepo = H3Engine.comfyOrgRepo
+        let comfyFile = H3Engine.comfyInt8DitFile
+        let officialRepo = H3Engine.huggingfaceRepo
+        let script = """
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")
+from huggingface_hub import hf_hub_download, snapshot_download
+
+dest = Path(r"\(dest)")
+fl2va = dest / "FL2VA"
+transformer = fl2va / "transformer"
+transformer.mkdir(parents=True, exist_ok=True)
+
+print("DOWNLOAD:START:\(comfyRepo)", file=sys.stderr, flush=True)
+dit = None
+last_err = None
+for attempt in range(1, 8):
+    try:
+        dit = hf_hub_download(repo_id="\(comfyRepo)", filename="\(comfyFile)")
+        last_err = None
+        break
+    except Exception as e:
+        last_err = e
+        print(f"DOWNLOAD:RETRY:{attempt}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        time.sleep(min(60, 2 ** attempt))
+if last_err is not None:
+    raise last_err
+print("DOWNLOAD:COMPLETE:\(comfyRepo)", file=sys.stderr, flush=True)
+
+dit_dst = transformer / Path(dit).name
+if dit_dst.exists() or dit_dst.is_symlink():
+    dit_dst.unlink()
+os.symlink(dit, dit_dst)
+
+official = r"\(official)"
+if not official or not Path(official, "FL2VA", "text_encoder").exists():
+    print("DOWNLOAD:START:\(officialRepo)", file=sys.stderr, flush=True)
+    last_err = None
+    for attempt in range(1, 8):
+        try:
+            official = snapshot_download(
+                repo_id="\(officialRepo)",
+                allow_patterns=[
+                    "FL2VA/text_encoder/**",
+                    "FL2VA/video_vae/**",
+                    "FL2VA/audio_vae/**",
+                    "FL2VA/tokenizer/**",
+                    "FL2VA/processor/**",
+                    "FL2VA/transformer/config.json",
+                    "FL2VA/model_index.json",
+                ],
+                max_workers=4,
+            )
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+            print(f"DOWNLOAD:RETRY:{attempt}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+            time.sleep(min(60, 2 ** attempt))
+    if last_err is not None:
+        raise last_err
+    print("DOWNLOAD:COMPLETE:\(officialRepo)", file=sys.stderr, flush=True)
+
+official_fl2 = Path(official) / "FL2VA"
+for name in ("text_encoder", "video_vae", "audio_vae", "tokenizer", "processor"):
+    src = official_fl2 / name
+    dst = fl2va / name
+    if not src.exists():
+        continue
+    if dst.exists() or dst.is_symlink():
+        continue
+    os.symlink(src, dst)
+
+cfg_src = official_fl2 / "transformer" / "config.json"
+cfg_dst = transformer / "config.json"
+if cfg_src.exists() and not (cfg_dst.exists() or cfg_dst.is_symlink()):
+    os.symlink(cfg_src, cfg_dst)
+
+print(json.dumps({"snapshot_path": str(dest)}))
+"""
+
+        let output = try await runPython(
+            script: script,
+            timeout: 14400,
+            generationDiagnostics: (modelRepo: comfyRepo, textEncoderRepo: "bundled")
+        ) { stderrChunk in
+            let lines = stderrChunk.replacingOccurrences(of: "\r", with: "\n")
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            DispatchQueue.main.async {
+                for line in lines {
+                    let lower = line.lowercased()
+                    if line.hasPrefix("DOWNLOAD:START:Comfy-Org") {
+                        progressHandler(0.03, "Downloading Comfy-Org int8 DiT (~20GB)…")
+                    } else if line.hasPrefix("DOWNLOAD:START:") {
+                        progressHandler(0.04, "Downloading MiniMaxAI text encoder/VAEs…")
+                    } else if line.hasPrefix("DOWNLOAD:RETRY:") {
+                        progressHandler(0.04, "H3 int8 download stalled; resuming…")
+                    } else if line.hasPrefix("DOWNLOAD:COMPLETE:") {
+                        progressHandler(0.08, "H3 int8 component download complete")
+                    } else if lower.contains("gated") || lower.contains("401") || lower.contains("unauthorized") {
+                        progressHandler(0.02, "Hugging Face auth required")
+                    } else if lower.contains("fetching") || lower.contains("download") || (line.contains("%") && line.contains("|")) {
+                        progressHandler(0.05, line)
+                    }
+                }
+            }
+        }
+
+        if H3Engine.isInt8TreeReady(dest) {
+            return dest
+        }
+        if let jsonStart = output.range(of: "{\"snapshot_path\""),
+           let jsonEnd = output.range(of: "}", range: jsonStart.lowerBound..<output.endIndex) {
+            let jsonString = String(output[jsonStart.lowerBound...jsonEnd.lowerBound])
+            if let data = jsonString.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let path = json["snapshot_path"] as? String,
+               H3Engine.isInt8TreeReady(path) {
+                return path
+            }
+        }
+        throw LTXError.generationFailed(
+            "H3 int8 tree is incomplete at \(dest). Need Comfy int8 DiT plus MiniMaxAI text encoder/VAEs. Full log: /tmp/ltx_generation.log"
+        )
+    }
+
+    private func assembleH3TurboTree(
+        progressHandler: @escaping (Double, String) -> Void
+    ) async throws -> String {
+        setupPythonPaths()
+        guard let python = pythonExecutable else {
+            throw LTXError.generationFailed(H3Engine.downloadRequiresPythonHint())
+        }
+
+        let official: String
+        if let existing = H3Engine.resolvedOfficialSnapshot() {
+            official = existing
+        } else {
+            progressHandler(0.02, "Downloading MiniMax-H3 BF16 (~144GB) for Turbo fold…")
+            official = try await downloadH3Snapshot(progressHandler: progressHandler)
+        }
+        guard let transformer = H3Engine.officialTransformerDirectory(),
+              H3Engine.hasOfficialTransformer(official) else {
+            throw LTXError.generationFailed(
+                "H3 Turbo needs the official BF16 transformer shards. Download MiniMax H3 BF16 first. Full log: /tmp/ltx_generation.log"
+            )
+        }
+
+        let dest = H3Engine.turboModelDirectory
+        if H3Engine.isTurboTreeReady(dest) {
+            return dest
+        }
+
+        progressHandler(0.06, "Downloading Turbo LoRA (larryvrh v4)…")
+        let loraRepo = H3Engine.turboLoraRepo
+        let loraFile = H3Engine.turboLoraFile
+        let loraScript = """
+import json
+import os
+import sys
+import time
+
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
+from huggingface_hub import hf_hub_download
+
+print("DOWNLOAD:START:\(loraRepo)", file=sys.stderr, flush=True)
+path = None
+last_err = None
+for attempt in range(1, 8):
+    try:
+        path = hf_hub_download(repo_id="\(loraRepo)", filename="\(loraFile)")
+        last_err = None
+        break
+    except Exception as e:
+        last_err = e
+        print(f"DOWNLOAD:RETRY:{attempt}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        time.sleep(min(60, 2 ** attempt))
+if last_err is not None:
+    raise last_err
+print("DOWNLOAD:COMPLETE:\(loraRepo)", file=sys.stderr, flush=True)
+print(json.dumps({"lora_path": path}))
+"""
+        let loraOutput = try await runPython(
+            script: loraScript,
+            timeout: 3600,
+            generationDiagnostics: (modelRepo: loraRepo, textEncoderRepo: "bundled")
+        ) { stderrChunk in
+            let lines = stderrChunk.replacingOccurrences(of: "\r", with: "\n")
+                .components(separatedBy: "\n")
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            DispatchQueue.main.async {
+                for line in lines {
+                    if line.hasPrefix("DOWNLOAD:START:") {
+                        progressHandler(0.06, "Downloading Turbo LoRA…")
+                    } else if line.hasPrefix("DOWNLOAD:RETRY:") {
+                        progressHandler(0.06, "Turbo LoRA download stalled; resuming…")
+                    } else if line.contains("%") && line.contains("|") {
+                        progressHandler(0.07, line)
+                    }
+                }
+            }
+        }
+        guard let jsonStart = loraOutput.range(of: "{\"lora_path\""),
+              let jsonEnd = loraOutput.range(of: "}", range: jsonStart.lowerBound..<loraOutput.endIndex) else {
+            throw LTXError.generationFailed("Turbo LoRA download did not return a path. Full log: /tmp/ltx_generation.log")
+        }
+        let jsonString = String(loraOutput[jsonStart.lowerBound...jsonEnd.lowerBound])
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let loraPath = json["lora_path"] as? String else {
+            throw LTXError.generationFailed("Could not parse Turbo LoRA path. Full log: /tmp/ltx_generation.log")
+        }
+
+        let resourcesPath = Bundle.main.bundlePath + "/Contents/Resources"
+        let foldScript = resourcesPath + "/fold_turbo_lora.py"
+        guard FileManager.default.fileExists(atPath: foldScript) else {
+            throw LTXError.generationFailed("Missing fold_turbo_lora.py in the app bundle. Rebuild the app.")
+        }
+
+        let destURL = URL(fileURLWithPath: dest)
+        let destFL2 = destURL.appendingPathComponent("FL2VA", isDirectory: true)
+        let destTransformer = destFL2.appendingPathComponent("transformer", isDirectory: true)
+        try FileManager.default.createDirectory(at: destFL2, withIntermediateDirectories: true)
+
+        progressHandler(0.08, "Folding Turbo LoRA into BF16 transformer (APFS CoW)…")
+        try await runExternalProcess(
+            executable: python,
+            arguments: [
+                foldScript,
+                "--checkpoint", transformer,
+                "--lora", loraPath,
+                "--out", destTransformer.path,
+            ],
+            timeout: 7200
+        ) { line in
+            progressHandler(0.08, line)
+        }
+
+        let officialFL2 = URL(fileURLWithPath: official).appendingPathComponent("FL2VA", isDirectory: true)
+        for name in ["text_encoder", "video_vae", "audio_vae", "tokenizer", "processor"] {
+            let src = officialFL2.appendingPathComponent(name)
+            let dst = destFL2.appendingPathComponent(name)
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: src.path, isDirectory: &isDir) else { continue }
+            if FileManager.default.fileExists(atPath: dst.path) { continue }
+            try FileManager.default.createSymbolicLink(at: dst, withDestinationURL: src)
+        }
+        try "folded".write(
+            to: destTransformer.appendingPathComponent(".turbo-folded"),
+            atomically: true,
+            encoding: .utf8
+        )
+
+        guard H3Engine.isTurboTreeReady(dest) else {
+            throw LTXError.generationFailed(
+                "H3 Turbo fold finished but the tree is incomplete at \(dest). Full log: /tmp/ltx_generation.log"
+            )
+        }
+        return dest
     }
 
     private func runExternalProcess(

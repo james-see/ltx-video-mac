@@ -150,8 +150,9 @@ class GenerationService: ObservableObject {
                 queue.removeAll { $0.status != .pending }
                 return
             }
-            // First generate downloads MiniMax-H3 via huggingface_hub if no local snapshot.
-            if H3Engine.resolvedModelDirectory() == nil {
+            // First generate downloads weights via huggingface_hub if the variant tree is missing.
+            let variant = H3Variant.from(modelId: pendingRequest.modelId)
+            if H3Engine.resolvedModelDirectory(for: variant) == nil {
                 guard let pythonPath = UserDefaults.standard.string(forKey: "pythonPath"), !pythonPath.isEmpty else {
                     queue[index].status = .failed
                     error = .generationFailed(H3Engine.downloadRequiresPythonHint())

@@ -19,7 +19,7 @@ Native SwiftUI macOS app for local AI video on Apple Silicon. **v2.3.69** adds L
 - **Built-in Audio Generation** - LTX AV models generate synchronized audio with video
 - **Voiceover Narration** - Add TTS voiceover using ElevenLabs (cloud) or MLX-Audio (local)
 - **Background Music** - Generate instrumental music with 54 genre presets via ElevenLabs Music API
-- **Local REST API** - `127.0.0.1:8420` for queued generate (`model_id` includes `ltx25_*` and `minimax_h3`)
+- **Local REST API** - `127.0.0.1:8420` for queued generate (`model_id` includes `ltx25_*` and `minimax_h3` / `_int8` / `_turbo`)
 - **Auto Package Installer** - Missing Python packages are detected and can be installed with one click
 - **Generation Queue** - Queue multiple generations with real-time progress tracking
 - **History Management** - Browse, preview, and manage all your generated videos
@@ -77,7 +77,9 @@ Progress is shown in the app during download.
 - LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`, ~19GB, `ltx-2-mlx`; default on ≤16GB)
 - LTX-2.5 Distilled bf16 (`mlx-community/ltx-2.5-mlx`, ~100GB, `ltx-2-mlx` 0.15+)
 - LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + `--dit mlx-community/ltx-2.5-mlx-ditq8`)
-- MiniMax H3 (`MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c` binary)
+- MiniMax H3 BF16 (`minimax_h3`, `MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c`)
+- MiniMax H3 int8 (`minimax_h3_int8`, Comfy-Org DiT + MiniMaxAI TE/VAE, ~92GB)
+- MiniMax H3 Turbo (`minimax_h3_turbo`, folded larryvrh v4 LoRA, fixed 6 steps)
 
 ## Usage
 
@@ -114,7 +116,7 @@ curl -X POST http://127.0.0.1:8420/generate \
 
 Omit `source_image_path` for text-to-video generation. The source image path is resolved and validated before the request is queued.
 
-Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`. `text_encoder_id` is ignored for 2.5 and H3.
+Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`. `text_encoder_id` is ignored for 2.5 and H3.
 
 ### Gemma Prompt Enhancement
 
@@ -259,7 +261,7 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
   - [LTX-2.5 Distilled](https://huggingface.co/mlx-community/ltx-2.5-mlx) (~100GB, `ltx-2-mlx` 0.15+, Gemma 4 bundled)
   - [LTX-2.5 Distilled Q8 DiT](https://huggingface.co/mlx-community/ltx-2.5-mlx-ditq8) (same pack + DiT overlay)
   - [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) (~144GB, native [h3.c](https://github.com/antirez/h3.c))
-- **Precision**: bfloat16 (LTX); H3 uses the official MiniMax checkpoint
+- **Precision**: bfloat16 (LTX); H3 is official BF16, Comfy-Org int8, or folded Turbo on the same Metal `h3`
 
 ### Architecture
 

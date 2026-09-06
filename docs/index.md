@@ -21,7 +21,7 @@ Local text-to-video and image-to-video on Apple Silicon. LTX-2 / 2.3, LTX-2.5, a
 ## What's New in 2.3.69
 
 - **LTX-2.5** — Distilled (`ltx25_distilled`, ~100GB) and Distilled Q8 DiT (`ltx25_distilled_ditq8`). Gemma 4 is bundled. The app installs `dgrauet/ltx-2-mlx` 0.15+ only when you pick a 2.5 model.
-- **MiniMax H3** — Native `antirez/h3.c` (`minimax_h3`, ~144GB). License dialog on first select/generate; weights auto-download into the Hugging Face cache. Build `./h3` yourself (not in the DMG).
+- **MiniMax H3** — Native `h3.c` (`minimax_h3` BF16 ~144GB, `minimax_h3_int8` ~92GB, `minimax_h3_turbo` folded 6-step). License dialog on first select/generate; weights auto-download into the Hugging Face cache. Build `./h3` yourself (not in the DMG).
 - **Unchanged 2.3 path** — LTX-2 / 2.3 stay on `mlx-video-with-audio`. REST `POST /generate` accepts the new `model_id` values.
 
 [Release notes](https://github.com/james-see/ltx-video-mac/releases/tag/v2.3.69) · [Installation](installation) · [Architecture](architecture)
@@ -38,7 +38,7 @@ SwiftUI app. Generation is a local subprocess: `mlx-video-with-audio` for LTX-2 
 - **LTX-2, LTX-2.3, LTX-2.5, MiniMax H3** - 2.3 Q4 default (~22GB) except ≤16GB Macs (12GB pack); 2.5 / 12GB via `ltx-2-mlx`; H3 via native `h3.c`
 - **Text-to-Video** - Generate videos from text descriptions
 - **Image-to-Video** - Animate images; first/last frame and multi-image keyframes on the LTX path
-- **Local REST API** - `127.0.0.1:8420` (`ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`)
+- **Local REST API** - `127.0.0.1:8420` (`ltx25_distilled`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`)
 - **Gemma Prompt Enhancement** - Optional AI rewrites prompts for better results; uncensored enhancer avoids content filters
 - **Voiceover Narration** - Add TTS audio using ElevenLabs (cloud) or MLX-Audio (local)
 - **Background Music** - 54 genre presets for AI-generated instrumental music via ElevenLabs

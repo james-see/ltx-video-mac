@@ -45,6 +45,16 @@ Select a preset from the dropdown to quickly configure parameters:
 {: .tip }
 The LTX-2 Unified model uses a 2-stage generation pipeline with built-in audio. ltx-2-mlx distilled (LTX-2.5 and the 12GB 2.3 pack) is a single 8-step pass. MiniMax H3 runs the native `h3` binary (24 fps, frames snap to 5+17n).
 
+### MiniMax H3 variants
+
+All three stay on Metal `h3.c`. No MLX-H3, ANE, GGUF, or ComfyUI runtime.
+
+| `model_id` | Weights | Disk | RAM | Steps | Notes |
+|:-----------|:--------|:-----|:----|:------|:------|
+| `minimax_h3` | Official MiniMaxAI BF16 | ~144GB | 32GB+ | 4 / 20 / 50 presets | Stock `antirez/h3.c` |
+| `minimax_h3_int8` | Comfy-Org int8 DiT + MiniMaxAI TE/VAE | ~92GB (~20GB extra if BF16 is cached) | 24GB+ | Same presets | `h3.c-int8` (GPU ConvRot de-rot). Slight quality drop. |
+| `minimax_h3_turbo` | Official BF16 + folded Turbo v4 LoRA | ~144GB + ~3GB CoW | 32GB+ | Fixed 6 | First generate bakes the LoRA. Do not combine with reuse. |
+
 ### 3. Generate
 
 Click the **Generate** button. Progress shows:

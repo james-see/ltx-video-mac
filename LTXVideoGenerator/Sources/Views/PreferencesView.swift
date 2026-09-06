@@ -395,7 +395,7 @@ struct PreferencesView: View {
                                 .textFieldStyle(.roundedBorder)
                             Button("Browse...") { selectH3Binary() }
                         }
-                        Text("Optional. Leave empty and first Generate clones antirez/h3.c into Application Support and runs make. Override with this path, ~/projects/h3.c/h3, ~/p/h3.c/h3, or `which h3`.")
+                        Text("Optional BF16 override. Leave empty and first Generate clones antirez/h3.c into Application Support and runs make. Int8 always uses Application Support/h3.c-int8. Turbo uses the BF16 binary.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 
@@ -404,7 +404,7 @@ struct PreferencesView: View {
                                 .textFieldStyle(.roundedBorder)
                             Button("Browse...") { selectH3ModelDirectory() }
                         }
-                        Text("Optional override. Leave empty to use ~/MiniMax-H3, the Hugging Face cache, or auto-download MiniMaxAI/MiniMax-H3 (~144GB) on first generate.")
+                        Text("Optional BF16 override. Leave empty to use ~/MiniMax-H3, the Hugging Face cache, or auto-download MiniMaxAI/MiniMax-H3 (~144GB). Int8/Turbo assemble their own trees under Application Support.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

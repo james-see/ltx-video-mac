@@ -89,18 +89,24 @@ struct ParametersView: View {
                             Label("H3 Speed Preset", systemImage: "hare")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                            Picker("", selection: Binding(
-                                get: { H3SpeedPreset.from(inferenceSteps: parameters.numInferenceSteps) },
-                                set: { parameters.numInferenceSteps = $0.steps }
-                            )) {
-                                ForEach(H3SpeedPreset.allCases) { preset in
-                                    Text(preset.displayName).tag(preset)
+                            if selectedModel.id == H3Variant.turbo.rawValue {
+                                Text("Turbo is fixed at 6 steps / 50 layers / reuse 1. Fast/Default/Reference do not apply.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Picker("", selection: Binding(
+                                    get: { H3SpeedPreset.from(inferenceSteps: parameters.numInferenceSteps) },
+                                    set: { parameters.numInferenceSteps = $0.steps }
+                                )) {
+                                    ForEach(H3SpeedPreset.allCases) { preset in
+                                        Text(preset.displayName).tag(preset)
+                                    }
                                 }
+                                .labelsHidden()
+                                Text("Fast = 4/50/1, Default = 20/45/2, Reference = 50/50/1 (steps/layers/reuse).")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-                            .labelsHidden()
-                            Text("Fast = 4/50/1, Default = 20/45/2, Reference = 50/50/1 (steps/layers/reuse).")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
                         }
                     } else {
                         ParameterSlider(
@@ -420,7 +426,9 @@ struct ParametersView: View {
                 let canvas = H3Engine.clampCanvas(width: parameters.width, height: parameters.height)
                 parameters.width = canvas.0
                 parameters.height = canvas.1
-                if parameters.numInferenceSteps != 4 && parameters.numInferenceSteps != 20 && parameters.numInferenceSteps != 50 {
+                if selectedModel.id == H3Variant.turbo.rawValue {
+                    parameters.numInferenceSteps = 6
+                } else if parameters.numInferenceSteps != 4 && parameters.numInferenceSteps != 20 && parameters.numInferenceSteps != 50 {
                     parameters.numInferenceSteps = H3SpeedPreset.default.steps
                 }
             }

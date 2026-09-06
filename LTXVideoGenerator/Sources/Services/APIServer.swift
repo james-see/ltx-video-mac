@@ -126,7 +126,7 @@ class APIServer: ObservableObject {
                 "endpoints": [
                     "GET /status": "Server and generation status",
                     "GET /queue": "Current generation queue",
-                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_distilled_ditq8, minimax_h3. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
+                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_distilled_ditq8, minimax_h3, minimax_h3_int8, minimax_h3_turbo. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
                     "DELETE /queue/:id": "Cancel a queued request"
                 ]
             ])
@@ -246,7 +246,11 @@ class APIServer: ObservableObject {
                 let canvas = H3Engine.clampCanvas(width: params.width, height: params.height)
                 params.width = canvas.0
                 params.height = canvas.1
-                params.numInferenceSteps = H3SpeedPreset.from(inferenceSteps: params.numInferenceSteps).steps
+                let variant = H3Variant.from(modelId: resolvedModel.id)
+                params.numInferenceSteps = H3SpeedPreset.schedule(
+                    for: variant,
+                    inferenceSteps: params.numInferenceSteps
+                ).steps
             }
             
             let request = GenerationRequest(

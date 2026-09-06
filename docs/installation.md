@@ -83,7 +83,15 @@ Or clone to `~/projects/ltx-2-mlx`, run `uv sync --all-extras`, and enable **Use
 
 ## MiniMax H3 (`h3.c`)
 
-H3 does not use Python. First Generate clones `antirez/h3.c` into Application Support and runs `make` (needs Xcode Command Line Tools). Override with **h3 binary path**, `~/projects/h3.c/h3`, `~/p/h3.c/h3`, or `PATH`. Selecting H3 (or the first Generate) shows an Accept / Read license dialog for the MiniMax H3 Community License. Weights then download automatically into the Hugging Face cache (`MiniMaxAI/MiniMax-H3`, ~144GB). Override with **H3 model directory** if you already have a snapshot. If the repo is gated, run `hf auth login` first. US/EU/UK/KR users may need [territory authorization](https://platform.minimax.io/h3-license).
+H3 does not use a Python inference runtime. First Generate clones `antirez/h3.c` (BF16 / Turbo) or `Shedrackeze002/h3.c-int8` (int8, pin `200eed4`) into Application Support and runs `make` (needs Xcode Command Line Tools). **h3 binary path** / **H3 model directory** override BF16 only. Selecting H3 shows an Accept / Read license dialog for the MiniMax H3 Community License (also covers the Turbo LoRA as a derivative).
+
+| Variant | First-generate download |
+|:--------|:------------------------|
+| BF16 | `MiniMaxAI/MiniMax-H3` (~144GB) |
+| int8 | Comfy-Org int8 DiT (~20GB) + MiniMaxAI text encoder/VAEs (~72GB). Reuses a local BF16 snapshot for TE/VAE when present. |
+| Turbo | Official BF16 if missing, then `larryvrh/MiniMax-H3-Turbo-Lora` and an offline fold (~2–3GB APFS CoW) |
+
+If the MiniMaxAI repo is gated, run `hf auth login` first. US/EU/UK/KR users may need [territory authorization](https://platform.minimax.io/h3-license).
 
 ## First Run - Model Download
 
@@ -115,6 +123,8 @@ Models are cached by Hugging Face in folders such as:
 ~/.cache/huggingface/hub/models--baa-ai--LTX-2.3-22B-RAM-12GB-MLX/
 ~/.cache/huggingface/hub/models--mlx-community--ltx-2.5-mlx/
 ~/.cache/huggingface/hub/models--MiniMaxAI--MiniMax-H3/
+~/.cache/huggingface/hub/models--Comfy-Org--MiniMax-H3/
+~/.cache/huggingface/hub/models--larryvrh--MiniMax-H3-Turbo-Lora/
 ```
 
 To store new downloads on another disk:

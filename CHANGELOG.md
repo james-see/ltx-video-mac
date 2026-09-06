@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- MiniMax H3 catalog variants on the same Metal `h3` subprocess: **int8** (`minimax_h3_int8`, Comfy-Org DiT + MiniMaxAI TE/VAE, `h3.c-int8` pin `200eed4`) and **Turbo** (`minimax_h3_turbo`, offline-folded larryvrh v4 LoRA, fixed 6/50/1). BF16 (`minimax_h3`) is unchanged.
+
 ## [2.3.77] - 2026-09-05
 
 ### Fixed
