@@ -944,6 +944,7 @@ except Exception as e:
             .replacingOccurrences(of: "\n", with: "\\n")
         let imagePath = request.sourceImagePath ?? ""
         let extraKeyframes = params.keyframes.contains { !$0.imagePath.isEmpty }
+        let adapterPath = Bundle.main.bundlePath + "/Contents/Resources/ltx25_community_adapter.py"
 
         progressHandler(0.1, "Starting \(request.isImageToVideo ? "image-to-video" : "text-to-video") (\(selectedModel.displayName))...")
         if extraKeyframes {
@@ -1017,25 +1018,15 @@ try:
     model_path = snapshot_download(repo_id=model_repo)
     log(f"Model snapshot ready: {model_path}")
 
-    # mlx-community LTX-2.5 already ships split q/k/v DurationHead keys.
-    # ltx-2-mlx 0.15.2 still expects fused in_proj_* and KeyErrors in __init__.
-    # We pass --frames, so auto-duration is unused.
-    runner = (
-        "import sys\\n"
-        "from ltx_pipelines_mlx.utils.blocks import DurationPredictor\\n"
-        "_orig = DurationPredictor.from_checkpoint\\n"
-        "def _safe(model_dir):\\n"
-        "    try:\\n"
-        "        return _orig(model_dir)\\n"
-        "    except Exception as e:\\n"
-        "        print('DurationHead skipped (%s: %s); using --frames' % (type(e).__name__, e), file=sys.stderr, flush=True)\\n"
-        "        return None\\n"
-        "DurationPredictor.from_checkpoint = classmethod(lambda cls, model_dir: _safe(model_dir))\\n"
-        "from ltx_pipelines_mlx.cli import main\\n"
-        "sys.argv = ['ltx-2-mlx'] + sys.argv[1:]\\n"
-        "raise SystemExit(main() or 0)\\n"
-    )
-    cmd = [sys.executable, "-c", runner, "generate"] + [
+    # mlx-community pack is mlx-lm Gemma 4 (gemma4-12b-ltx-v1/), not
+    # dgrauet's root text_encoder.safetensors. Adapter loads that folder
+    # and skips DurationHead fused-in_proj mismatch (we pass --frames).
+    adapter = "\(adapterPath)"
+    if not os.path.isfile(adapter):
+        raise RuntimeError(
+            "Missing ltx25_community_adapter.py in the app bundle. Rebuild the app."
+        )
+    cmd = [sys.executable, adapter, "generate"] + [
         "--prompt", prompt,
         "--model", model_path,
         "--distilled",
