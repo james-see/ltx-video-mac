@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.77] - 2026-09-05
+
+### Fixed
+- MiniMax H3 generate runs from the `h3` binary directory so `h3_shaders.metal` is found.
+
 ## [2.3.76] - 2026-09-05
 
 ### Fixed
