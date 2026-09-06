@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.76] - 2026-09-05
+
+### Fixed
+- MiniMax H3 weight download no longer dies on a 10s Hugging Face read timeout. Resume + retry; `HF_HUB_DOWNLOAD_TIMEOUT=600`.
+
 ## [2.3.75] - 2026-09-05
 
 ### Added
