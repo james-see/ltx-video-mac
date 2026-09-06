@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.73] - 2026-09-05
+
+### Fixed
+- LTX-2.5 now loads the pack's Gemma 4 (`gemma4-12b-ltx-v1/`) instead of falling back to Gemma 3 4-bit. That mismatch was producing coherent but unrelated scenes.
+
 ## [2.3.72] - 2026-09-05
 
 ### Fixed
