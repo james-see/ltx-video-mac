@@ -176,10 +176,11 @@ class LTXBridge {
     func loadModel(progressHandler: @escaping (String) -> Void) async throws {
         let selectedModel = LTXModelCatalog.selectedModel()
         if selectedModel.backend == .h3c {
-            guard H3Engine.resolvedBinary() != nil else {
-                throw LTXError.generationFailed(H3Engine.missingBinaryHint())
+            if let binary = H3Engine.resolvedBinary() {
+                progressHandler("h3.c ready (\(binary)). Weights download on first generation (\(selectedModel.downloadSize)).")
+            } else {
+                progressHandler("h3.c will be cloned and built on first generation. Weights download then too (\(selectedModel.downloadSize)).")
             }
-            progressHandler("h3.c ready. Weights download on first generation (\(selectedModel.downloadSize)).")
             isModelLoaded = true
             return
         }
@@ -1178,8 +1179,18 @@ except Exception as e:
         guard H3Engine.licenseAccepted else {
             throw LTXError.generationFailed(H3Engine.licenseNotice())
         }
-        guard let binary = H3Engine.resolvedBinary() else {
-            throw LTXError.generationFailed(H3Engine.missingBinaryHint())
+        let binary: String
+        if let existing = H3Engine.resolvedBinary() {
+            binary = existing
+        } else {
+            progressHandler(0.01, "Cloning and building h3.c…")
+            do {
+                binary = try await H3Engine.ensureBinary { msg in
+                    progressHandler(0.01, msg)
+                }
+            } catch {
+                throw LTXError.generationFailed(error.localizedDescription)
+            }
         }
         let modelDir: String
         if let existing = H3Engine.resolvedModelDirectory() {

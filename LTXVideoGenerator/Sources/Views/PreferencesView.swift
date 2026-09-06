@@ -385,7 +385,7 @@ struct PreferencesView: View {
                                 .textFieldStyle(.roundedBorder)
                             Button("Browse...") { selectH3Binary() }
                         }
-                        Text("Discovery order: this path, then ~/projects/h3.c/h3, then `which h3`. Build with: git clone https://github.com/antirez/h3.c && make -j8")
+                        Text("Optional. Leave empty and first Generate clones antirez/h3.c into Application Support and runs make. Override with this path, ~/projects/h3.c/h3, ~/p/h3.c/h3, or `which h3`.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
 

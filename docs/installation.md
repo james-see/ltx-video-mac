@@ -83,15 +83,7 @@ Or clone to `~/projects/ltx-2-mlx`, run `uv sync --all-extras`, and enable **Use
 
 ## MiniMax H3 (`h3.c`)
 
-H3 does not use Python. Build the binary yourself (not bundled in the DMG):
-
-```bash
-git clone https://github.com/antirez/h3.c
-cd h3.c
-make -j8
-```
-
-Put `./h3` at `~/projects/h3.c/h3`, on `PATH`, or set **h3 binary path** in Preferences. Selecting H3 (or the first Generate) shows an Accept / Read license dialog for the MiniMax H3 Community License. Weights then download automatically into the Hugging Face cache (`MiniMaxAI/MiniMax-H3`, ~144GB). Override with **H3 model directory** if you already have a snapshot. If the repo is gated, run `hf auth login` first. US/EU/UK/KR users may need [territory authorization](https://platform.minimax.io/h3-license).
+H3 does not use Python. First Generate clones `antirez/h3.c` into Application Support and runs `make` (needs Xcode Command Line Tools). Override with **h3 binary path**, `~/projects/h3.c/h3`, `~/p/h3.c/h3`, or `PATH`. Selecting H3 (or the first Generate) shows an Accept / Read license dialog for the MiniMax H3 Community License. Weights then download automatically into the Hugging Face cache (`MiniMaxAI/MiniMax-H3`, ~144GB). Override with **H3 model directory** if you already have a snapshot. If the repo is gated, run `hf auth login` first. US/EU/UK/KR users may need [territory authorization](https://platform.minimax.io/h3-license).
 
 ## First Run - Model Download
 

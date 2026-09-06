@@ -45,7 +45,7 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 |:----------|:-----|:-----|
 | `GenerationService` | `GenerationService.swift` | Manages the generation queue, spawns Python processes |
 | `LTXBridge` | `LTXBridge.swift` | Builds CLI args per backend, manages `PYTHONPATH`, parses progress |
-| `H3Engine` | `H3Engine.swift` | h3 binary/model discovery, frame/res snap, speed presets, license |
+| `H3Engine` | `H3Engine.swift` | h3 clone/build on first generate, model discovery, frame/res snap, license |
 | `PythonEnvironment` | `PythonEnvironment.swift` | Detects Python, validates packages, optional ltx-2-mlx git install |
 | `RootView` | `LTXVideoGeneratorApp.swift` | Launch-time Python validation and upgrade consent |
 

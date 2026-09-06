@@ -48,11 +48,17 @@ enum H3SpeedPreset: String, CaseIterable, Identifiable {
     }
 }
 
+struct H3EngineError: LocalizedError {
+    let message: String
+    var errorDescription: String? { message }
+}
+
 enum H3Engine {
     static let binaryPathKey = "h3BinaryPath"
     static let modelDirectoryKey = "h3ModelDirectory"
     static let licenseAcceptedKey = "h3LicenseAccepted"
     static let huggingfaceRepo = "MiniMaxAI/MiniMax-H3"
+    static let sourceRepoURL = "https://github.com/antirez/h3.c.git"
     static let legalFrameCounts = [22, 39, 56, 107, 243, 362]
     static let maxPixelProduct = 768 * 1344
     static let minimumRAMGB = 16
@@ -102,6 +108,18 @@ enum H3Engine {
         return (w, h)
     }
 
+    static var defaultSourceDirectory: String {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        return appSupport
+            .appendingPathComponent("LTXVideoGenerator", isDirectory: true)
+            .appendingPathComponent("h3.c", isDirectory: true)
+            .path
+    }
+
+    static var defaultBinaryPath: String {
+        (defaultSourceDirectory as NSString).appendingPathComponent("h3")
+    }
+
     static func resolvedBinary(userDefaults: UserDefaults = .standard) -> String? {
         let fm = FileManager.default
         let preferred = userDefaults.string(forKey: binaryPathKey)?
@@ -111,15 +129,178 @@ enum H3Engine {
         }
 
         let home = fm.homeDirectoryForCurrentUser.path
-        let local = "\(home)/projects/h3.c/h3"
-        if fm.isExecutableFile(atPath: local) {
-            return local
+        let candidates = [
+            defaultBinaryPath,
+            "\(home)/projects/h3.c/h3",
+            "\(home)/p/h3.c/h3",
+        ]
+        for path in candidates where fm.isExecutableFile(atPath: path) {
+            return path
         }
 
         if let which = which("h3") {
             return which
         }
         return nil
+    }
+
+    /// Clone and `make` h3.c when no executable is on disk. First generate, not a pre-req.
+    static func ensureBinary(
+        userDefaults: UserDefaults = .standard,
+        progress: @escaping (String) -> Void
+    ) async throws -> String {
+        if let existing = resolvedBinary(userDefaults: userDefaults) {
+            return existing
+        }
+        return try await Task.detached(priority: .userInitiated) {
+            try bootstrapBinary(userDefaults: userDefaults, progress: progress)
+        }.value
+    }
+
+    private static func bootstrapBinary(
+        userDefaults: UserDefaults,
+        progress: @escaping (String) -> Void
+    ) throws -> String {
+        guard which("git") != nil else {
+            throw H3EngineError(message: "git is required to fetch h3.c. Install Xcode Command Line Tools (`xcode-select --install`) and retry Generate.")
+        }
+        guard which("make") != nil else {
+            throw H3EngineError(message: "make is required to build h3.c. Install Xcode Command Line Tools (`xcode-select --install`) and retry Generate.")
+        }
+
+        let source = defaultSourceDirectory
+        try cloneOrUpdate(into: source, progress: progress)
+        try build(in: source, progress: progress)
+
+        let binary = (source as NSString).appendingPathComponent("h3")
+        guard FileManager.default.isExecutableFile(atPath: binary) else {
+            throw H3EngineError(message: "h3 build finished but \(binary) is not executable.")
+        }
+
+        let preferred = userDefaults.string(forKey: binaryPathKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if preferred.isEmpty {
+            userDefaults.set(binary, forKey: binaryPathKey)
+        }
+        return binary
+    }
+
+    private static func cloneOrUpdate(into source: String, progress: @escaping (String) -> Void) throws {
+        let fm = FileManager.default
+        let gitDir = (source as NSString).appendingPathComponent(".git")
+        let makefile = (source as NSString).appendingPathComponent("Makefile")
+
+        if fm.fileExists(atPath: gitDir) {
+            progress("Updating h3.c…")
+            do {
+                try runTool(
+                    "git",
+                    arguments: ["-C", source, "pull", "--ff-only"],
+                    directory: nil,
+                    progress: progress
+                )
+            } catch {
+                progress("git pull skipped (\(error.localizedDescription)); building the existing tree")
+            }
+            return
+        }
+
+        if fm.fileExists(atPath: makefile) {
+            progress("Using existing h3.c sources at \(source)")
+            return
+        }
+
+        if fm.fileExists(atPath: source) {
+            try fm.removeItem(atPath: source)
+        }
+        try fm.createDirectory(
+            at: URL(fileURLWithPath: source).deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        progress("Cloning h3.c…")
+        try runTool(
+            "git",
+            arguments: ["clone", "--depth", "1", sourceRepoURL, source],
+            directory: nil,
+            progress: progress
+        )
+    }
+
+    private static func build(in source: String, progress: @escaping (String) -> Void) throws {
+        let jobs = max(1, ProcessInfo.processInfo.activeProcessorCount)
+        progress("Building h3 (`make -j\(jobs)`)…")
+        do {
+            try runTool(
+                "make",
+                arguments: ["-j\(jobs)"],
+                directory: source,
+                progress: progress
+            )
+        } catch {
+            throw H3EngineError(
+                message: "h3.c build failed. Install Xcode Command Line Tools (`xcode-select --install`) if clang/make are missing. \(error.localizedDescription)"
+            )
+        }
+    }
+
+    private static func runTool(
+        _ name: String,
+        arguments: [String],
+        directory: String?,
+        progress: @escaping (String) -> Void
+    ) throws {
+        guard let executable = which(name) ?? ["/usr/bin/\(name)", "/opt/homebrew/bin/\(name)", "/usr/local/bin/\(name)"].first(where: {
+            FileManager.default.isExecutableFile(atPath: $0)
+        }) else {
+            throw H3EngineError(message: "\(name) not found on PATH")
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        if let directory {
+            process.currentDirectoryURL = URL(fileURLWithPath: directory)
+        }
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:" + (env["PATH"] ?? "")
+        process.environment = env
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = pipe
+        try process.run()
+
+        let handle = pipe.fileHandleForReading
+        var leftover = Data()
+        while process.isRunning {
+            let chunk = handle.availableData
+            if chunk.isEmpty {
+                Thread.sleep(forTimeInterval: 0.05)
+                continue
+            }
+            leftover.append(chunk)
+            leftover = emitLines(from: leftover, progress: progress)
+        }
+        leftover.append(handle.readDataToEndOfFile())
+        _ = emitLines(from: leftover, progress: progress)
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            throw H3EngineError(message: "\(name) exited \(process.terminationStatus)")
+        }
+    }
+
+    private static func emitLines(from data: Data, progress: @escaping (String) -> Void) -> Data {
+        var data = data
+        while let range = data.range(of: Data([0x0A])) {
+            let lineData = data[..<range.lowerBound]
+            data.removeSubrange(..<(range.upperBound))
+            if let line = String(data: lineData, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !line.isEmpty {
+                progress(line)
+            }
+        }
+        return data
     }
 
     static func resolvedModelDirectory(userDefaults: UserDefaults = .standard) -> String? {
@@ -181,7 +362,7 @@ enum H3Engine {
     }
 
     static func missingBinaryHint() -> String {
-        "h3 binary not found. Clone and build: git clone https://github.com/antirez/h3.c && cd h3.c && make -j8. Then set the binary path in Preferences → General, or place it at ~/projects/h3.c/h3."
+        "Could not build h3.c. Need git, make, and Xcode Command Line Tools (`xcode-select --install`). Or set Preferences → General → h3 binary path to an existing binary."
     }
 
     static func missingModelHint() -> String {
