@@ -1269,18 +1269,32 @@ except Exception as e:
         let repo = H3Engine.huggingfaceRepo
         let script = """
 import json
+import os
 import sys
+import time
+
+os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
+os.environ.setdefault("HF_HUB_ETAG_TIMEOUT", "60")
 from huggingface_hub import snapshot_download
 
 repo = "\(repo)"
 print(f"DOWNLOAD:START:{repo}", file=sys.stderr, flush=True)
-try:
-    path = snapshot_download(repo_id=repo)
-    print(f"DOWNLOAD:COMPLETE:{repo}", file=sys.stderr, flush=True)
-    print(json.dumps({"snapshot_path": path}))
-except Exception as e:
-    print(f"ERROR: {e}", file=sys.stderr, flush=True)
-    raise
+path = None
+last_err = None
+for attempt in range(1, 8):
+    try:
+        path = snapshot_download(repo_id=repo, max_workers=4)
+        last_err = None
+        break
+    except Exception as e:
+        last_err = e
+        print(f"DOWNLOAD:RETRY:{attempt}: {type(e).__name__}: {e}", file=sys.stderr, flush=True)
+        time.sleep(min(60, 2 ** attempt))
+if last_err is not None:
+    print(f"ERROR: {last_err}", file=sys.stderr, flush=True)
+    raise last_err
+print(f"DOWNLOAD:COMPLETE:{repo}", file=sys.stderr, flush=True)
+print(json.dumps({"snapshot_path": path}))
 """
 
         let output = try await runPython(
@@ -1297,6 +1311,8 @@ except Exception as e:
                     let lower = line.lowercased()
                     if line.hasPrefix("DOWNLOAD:START:") {
                         progressHandler(0.02, "Downloading MiniMax-H3 (~144GB)…")
+                    } else if line.hasPrefix("DOWNLOAD:RETRY:") {
+                        progressHandler(0.03, "MiniMax-H3 download stalled; resuming…")
                     } else if line.hasPrefix("DOWNLOAD:COMPLETE:") {
                         progressHandler(0.08, "MiniMax-H3 download complete")
                     } else if lower.contains("gated") || lower.contains("401") || lower.contains("unauthorized") {

@@ -366,7 +366,7 @@ enum H3Engine {
     }
 
     static func missingModelHint() -> String {
-        "MiniMax-H3 download failed (~144GB). Check the network, run `hf auth login` if the repo is gated, or set Preferences → General → H3 model directory to a local snapshot. Full log: /tmp/ltx_generation.log"
+        "MiniMax-H3 download failed (~144GB). Incomplete files stay in the Hugging Face cache — Generate again to resume. If the repo is gated, run `hf auth login`. Or set Preferences → General → H3 model directory to a local snapshot. Full log: /tmp/ltx_generation.log"
     }
 
     static func downloadRequiresPythonHint() -> String {

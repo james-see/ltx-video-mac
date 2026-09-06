@@ -25,6 +25,9 @@ enum HuggingFaceCacheConfiguration {
         to environment: inout [String: String],
         userDefaults: UserDefaults = .standard
     ) {
+        // huggingface_hub defaults to a 10s read timeout; large H3/LTX blobs stall past that.
+        environment["HF_HUB_DOWNLOAD_TIMEOUT"] = "600"
+        environment["HF_HUB_ETAG_TIMEOUT"] = "60"
         guard let directory = configuredDirectory(userDefaults: userDefaults) else {
             return
         }
