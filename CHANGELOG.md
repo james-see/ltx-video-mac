@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- LTX-2.5 / ltx-2-mlx now forwards additional timeline keyframes as repeatable `--image PATH FRAME_IDX STRENGTH` (pixel frame indices).
+
+### Fixed
+- LTX-2.5 DurationHead loads on `mlx-community/ltx-2.5-mlx` (pre-split q/k/v). Enables `--auto-duration` when `-f` is omitted; app still passes explicit frames from the slider.
+
 ## [2.3.82] - 2026-09-07
 
 ### Fixed

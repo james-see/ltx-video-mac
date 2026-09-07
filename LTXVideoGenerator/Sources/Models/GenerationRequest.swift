@@ -518,8 +518,8 @@ enum GenerationStatus: String, Codable, Equatable {
 }
 
 /// A single conditioning image pinned to a position along the video timeline.
-/// `position` is a fraction 0.0...1.0 (0 = first frame, 1 = last frame); the
-/// generation bridge maps it to a latent frame index based on `numFrames`.
+/// `position` is a fraction 0.0...1.0 (0 = first frame, 1 = last frame).
+/// `mlxVideoWithAudio` maps to a latent frame index; `ltx2Mlx` maps to a pixel frame index.
 struct Keyframe: Codable, Equatable, Hashable, Identifiable {
     var id: UUID = UUID()
     var imagePath: String

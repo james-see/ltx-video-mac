@@ -947,13 +947,31 @@ except Exception as e:
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
             .replacingOccurrences(of: "\n", with: "\\n")
-        let imagePath = request.sourceImagePath ?? ""
-        let extraKeyframes = params.keyframes.contains { !$0.imagePath.isEmpty }
+        // ltx-2-mlx --image uses pixel frame indices (not latent like mlx-video --keyframe).
+        let lastPixelIdx = max(0, params.numFrames - 1)
+        func pixelIndex(forFraction f: Double) -> Int {
+            let idx = Int((f * Double(lastPixelIdx)).rounded())
+            return min(max(idx, 0), lastPixelIdx)
+        }
+        func pyEscape(_ s: String) -> String {
+            s.replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\"", with: "\\\"")
+        }
+        var imageSpecs: [String] = []
+        if let primary = request.sourceImagePath, !primary.isEmpty {
+            let idx = request.parameters.imageFramePosition == "last" ? lastPixelIdx : 0
+            imageSpecs.append("\(pyEscape(primary))|\(idx)|\(params.imageStrength)")
+        }
+        for kf in params.keyframes where !kf.imagePath.isEmpty {
+            let idx = pixelIndex(forFraction: kf.position)
+            imageSpecs.append("\(pyEscape(kf.imagePath))|\(idx)|\(kf.strength)")
+        }
+        let imagesPyList = "[" + imageSpecs.map { "\"\($0)\"" }.joined(separator: ", ") + "]"
         let adapterPath = Bundle.main.bundlePath + "/Contents/Resources/ltx25_community_adapter.py"
 
         progressHandler(0.1, "Starting \(request.isImageToVideo ? "image-to-video" : "text-to-video") (\(selectedModel.displayName))...")
-        if extraKeyframes {
-            progressHandler(0.11, "Extra timeline keyframes are not forwarded on the ltx-2-mlx backend yet; using the primary image only.")
+        if imageSpecs.count > 1 {
+            progressHandler(0.11, "Conditioning \(imageSpecs.count) images (ltx-2-mlx --image, pixel frames)...")
         }
 
         let tilingArgs: String
@@ -989,7 +1007,7 @@ try:
     model_repo = "\(modelRepo)"
     dit_repo = "\(ditRepo)"
     gemma_repo = "\(gemmaRepo)"
-    image_path = "\(imagePath)"
+    image_specs = \(imagesPyList)
     local_repo = os.path.expanduser("~/projects/ltx-2-mlx")
     use_local = \(useLocalLtx2 ? "True" : "False") and os.path.isdir(local_repo)
 
@@ -1137,11 +1155,13 @@ try:
     if gemma_repo:
         cmd.extend(["--gemma", gemma_repo])
         log(f"Gemma text encoder: {gemma_repo}")
-    if image_path:
-        cmd.extend(["--image", image_path])
-        log(f"I2V image: {image_path}")
+    # Repeatable --image PATH FRAME_IDX STRENGTH (pixel frame index).
+    for spec in image_specs:
+        path, idx_s, strength_s = spec.split("|", 2)
+        cmd.extend(["--image", path, idx_s, strength_s])
+        log(f"I2V image: {path} @ pixel {idx_s} strength={strength_s}")
     if \(request.disableAudio ? "True" : "False"):
-        log("Generate Audio off is ignored on ltx-2-mlx 0.15.2 (no --no-audio flag)")
+        log("Generate Audio off is ignored on ltx-2-mlx 0.15.2 (no --no-audio; see dgrauet/ltx-2-mlx#126)")
     if \(enableEnhance ? "True" : "False"):
         cmd.append("--enhance-prompt")
     if \(useLowRam ? "True" : "False"):
