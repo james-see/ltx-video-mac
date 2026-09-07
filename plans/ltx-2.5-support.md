@@ -16,7 +16,8 @@ Status: implemented in-app. dgrauet/ltx-2-mlx **0.15.x already has LTX-2.5** —
 |---|---|---|---|
 | `ltx23_distilled_q4` | notapalindrome/ltx23-mlx-av-q4 | mlxVideoWithAudio | default |
 | `ltx25_distilled` | mlx-community/ltx-2.5-mlx (~100GB) | ltx2Mlx | Gemma 4 bundled, 8 steps, 64GB+ |
-| `ltx25_distilled_ditq8` | same pack + `--dit mlx-community/ltx-2.5-mlx-ditq8` | ltx2Mlx | 32GB+ with --low-ram |
+| `ltx25_dev` | same pack, `--two-stage` + `transformer-dev` | ltx2Mlx | stage-1 30 / CFG 3 / stage-2 3; no extra download |
+| `ltx25_distilled_ditq8` | same pack + overlay `mlx-community/ltx-2.5-mlx-ditq8` | ltx2Mlx | 32GB+ with --low-ram |
 | `minimax_h3` | MiniMaxAI/MiniMax-H3 (~144GB) | h3c | native Metal |
 
 `mlx-community/ltx-2.5-mlx-q8` is the **text encoder**, not the DiT. Do not treat it as a DiT quant.

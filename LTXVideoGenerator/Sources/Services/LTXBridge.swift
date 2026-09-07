@@ -1063,10 +1063,10 @@ try:
         raise RuntimeError(
             "Missing ltx25_community_adapter.py in the app bundle. Rebuild the app."
         )
+    two_stage = \(selectedModel.usesDevTwoStage ? "True" : "False")
     cmd = [sys.executable, adapter, "generate"] + [
         "--prompt", prompt,
         "--model", model_path,
-        "--distilled",
         "-H", str(\(genHeight)),
         "-W", str(\(genWidth)),
         "-f", str(\(params.numFrames)),
@@ -1074,6 +1074,19 @@ try:
         "-s", str(\(seed)),
         "-o", output_path,
     ]
+    if two_stage:
+        cmd.extend([
+            "--two-stage",
+            "--stage1-steps", str(\(params.numInferenceSteps)),
+            "--stage2-steps", "3",
+            "--cfg-scale", str(\(params.guidanceScale)),
+        ])
+        log(
+            f"Two-stage dev: stage1={int(\(params.numInferenceSteps))} "
+            f"stage2=3 cfg={float(\(params.guidanceScale))}"
+        )
+    else:
+        cmd.append("--distilled")
     if gemma_repo:
         cmd.extend(["--gemma", gemma_repo])
         log(f"Gemma text encoder: {gemma_repo}")

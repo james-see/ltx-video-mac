@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- LTX-2.5 Dev two-stage (`ltx25_dev`) on the same `mlx-community/ltx-2.5-mlx` pack (`--two-stage`, stage-1 steps default 30, CFG 3, stage-2 is 3). No extra download if Distilled is already cached. Other HF 2.5 flavors (mlx-serve, mlx-forge Gemma layout, text-encoder-only `-q8`) stay uncatalogued.
+
 ## [2.3.79] - 2026-09-07
 
 ### Fixed

@@ -29,10 +29,11 @@ Select the model in Preferences. LTX-2 / 2.3 `notapalindrome` packs use `mlx-vid
 | LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`) | 19B (Q4) | ~22GB | BigVGAN | Quantized; default for new installs except ≤16GB Macs |
 | LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`) | 22B mixed | ~19GB | BigVGAN | `ltx-2-mlx`; Gemma 3 via `--gemma`; default on ≤16GB; vendor ~14GB claim |
 | LTX-2.5 Distilled (`mlx-community/ltx-2.5-mlx`) | 22B | ~100GB | BigVGAN | Gemma 4 in `gemma4-12b-ltx-v1/`; `ltx-2-mlx` 0.15+; 8 steps |
+| LTX-2.5 Dev two-stage (`ltx25_dev`) | 22B | ~100GB (same pack) | BigVGAN | `--two-stage` + `transformer-dev`; stage-1 30 / CFG 3 / stage-2 3 |
 | LTX-2.5 Distilled Q8 DiT | 22B (Q8 DiT) | ~100GB + ~21GB | BigVGAN | overlay `mlx-community/ltx-2.5-mlx-ditq8` |
 | MiniMax H3 (`MiniMaxAI/MiniMax-H3`) | 33B | ~144GB | H3 audio VAE | Native `h3.c`; 24 fps; frames snap to 5+17n |
 
-LTX-2 / 2.3 `notapalindrome` packs use a 2-stage pipeline (half-res, then refine) with synchronized stereo audio. ltx-2-mlx distilled (2.5 and the 12GB pack) is a fixed 8-step pass (CFG=1). H3 is 24 fps with frames snapped to `5+17n`.
+LTX-2 / 2.3 `notapalindrome` packs use a 2-stage pipeline (half-res, then refine) with synchronized stereo audio. ltx-2-mlx distilled (2.5 Distilled / Q8 DiT and the 12GB pack) is a fixed 8-step pass (CFG=1). `ltx25_dev` is the official two-stage path (dev DiT + CFG, then distilled-LoRA refine). H3 is 24 fps with frames snapped to `5+17n`.
 
 See [Architecture](architecture) for full technical details on how each model is loaded and decoded.
 
@@ -115,7 +116,7 @@ Number of denoising steps per stage.
 |:--------|:------|:--------|
 | Steps | 8-50 | 28 |
 
-LTX-2 / 2.3 `notapalindrome` catalog models use Lightricks' distilled sigma schedule: 8 stage-1 steps + 3 stage-2 steps (11 total). ltx-2-mlx distilled (2.5 and `ltx23_12gb`) is a fixed 8-step schedule (CFG=1). H3 uses Fast / Default / Reference presets (`4/50/1`, `20/45/2`, `50/50/1`). The inference-steps slider is ignored for the LTX distilled catalogs.
+LTX-2 / 2.3 `notapalindrome` catalog models use Lightricks' distilled sigma schedule: 8 stage-1 steps + 3 stage-2 steps (11 total). ltx-2-mlx distilled (2.5 Distilled / Q8 DiT and `ltx23_12gb`) is a fixed 8-step schedule (CFG=1). `ltx25_dev` uses the slider as stage-1 steps (default 30, recommended 20–40) and CFG (default 3); stage-2 is 3. H3 uses Fast / Default / Reference presets (`4/50/1`, `20/45/2`, `50/50/1`). The inference-steps slider is ignored for the LTX distilled catalogs.
 
 ### Guidance Scale
 

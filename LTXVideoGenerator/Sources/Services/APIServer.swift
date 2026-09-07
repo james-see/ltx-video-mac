@@ -126,7 +126,7 @@ class APIServer: ObservableObject {
                 "endpoints": [
                     "GET /status": "Server and generation status",
                     "GET /queue": "Current generation queue",
-                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_distilled_ditq8, minimax_h3, minimax_h3_int8, minimax_h3_turbo. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
+                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_dev, ltx25_distilled_ditq8, minimax_h3, minimax_h3_int8, minimax_h3_turbo. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
                     "DELETE /queue/:id": "Cancel a queued request"
                 ]
             ])

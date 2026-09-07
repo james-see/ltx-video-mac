@@ -128,7 +128,9 @@ struct ParametersView: View {
                                     ? (selectedModel.backend == .ltx2Mlx
                                         ? "Fixed \(range.lowerBound) steps (ltx-2-mlx distilled). Slider is ignored."
                                         : "Fixed \(range.lowerBound) steps (8 + 3). Slider is ignored.")
-                                    : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
+                                    : selectedModel.usesDevTwoStage
+                                        ? "Stage-1 steps (recommended \(range.lowerBound)–\(range.upperBound); default 30). Stage-2 is 3."
+                                        : "Recommended: \(range.lowerBound)–\(range.upperBound) steps")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -144,6 +146,18 @@ struct ParametersView: View {
                             icon: "dial.medium",
                             format: "%.1f"
                         )
+                    } else if selectedModel.usesDevTwoStage {
+                        ParameterSlider(
+                            title: "Guidance Scale",
+                            value: $parameters.guidanceScale,
+                            range: 1...8,
+                            step: 0.5,
+                            icon: "dial.medium",
+                            format: "%.1f"
+                        )
+                        Text("Dev two-stage CFG (default 3). Applies to stage 1.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     } else if selectedModel.backend == .ltx2Mlx {
                         Text("ltx-2-mlx distilled uses CFG=1. Guidance scale is ignored.")
                             .font(.caption2)
@@ -420,6 +434,10 @@ struct ParametersView: View {
         }
         .padding()
         .onChange(of: selectedModelID) { _, _ in
+            if selectedModel.usesDevTwoStage {
+                parameters.numInferenceSteps = 30
+                parameters.guidanceScale = 3.0
+            }
             if selectedModel.backend == .h3c {
                 parameters.fps = 24
                 parameters.numFrames = H3Engine.snapFrameCount(parameters.numFrames)

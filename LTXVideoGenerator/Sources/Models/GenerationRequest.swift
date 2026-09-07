@@ -20,6 +20,8 @@ struct LTXModel: Identifiable, Codable, Hashable {
     let minRecommendedRAMGB: Int?
     let ditRepo: String?
     let usesBundledGemma4: Bool
+    /// Official LTX-2.5 production path: `--two-stage` + `transformer-dev`.
+    let usesDevTwoStage: Bool
 
     var recommendedSteps: ClosedRange<Int>? {
         guard let lo = recommendedStepsLower, let hi = recommendedStepsUpper else { return nil }
@@ -59,7 +61,8 @@ struct LTXModel: Identifiable, Codable, Hashable {
         backend: GenerationBackend = .mlxVideoWithAudio,
         minRecommendedRAMGB: Int? = nil,
         ditRepo: String? = nil,
-        usesBundledGemma4: Bool = false
+        usesBundledGemma4: Bool = false,
+        usesDevTwoStage: Bool = false
     ) {
         self.id = id
         self.repo = repo
@@ -74,12 +77,13 @@ struct LTXModel: Identifiable, Codable, Hashable {
         self.minRecommendedRAMGB = minRecommendedRAMGB
         self.ditRepo = ditRepo
         self.usesBundledGemma4 = usesBundledGemma4
+        self.usesDevTwoStage = usesDevTwoStage
     }
 
     enum CodingKeys: String, CodingKey {
         case id, repo, displayName, downloadSize, supportsBuiltInAudio
         case qualityWarning, recommendedStepsLower, recommendedStepsUpper, tips
-        case backend, minRecommendedRAMGB, ditRepo, usesBundledGemma4
+        case backend, minRecommendedRAMGB, ditRepo, usesBundledGemma4, usesDevTwoStage
     }
 
     init(from decoder: Decoder) throws {
@@ -97,6 +101,7 @@ struct LTXModel: Identifiable, Codable, Hashable {
         minRecommendedRAMGB = try c.decodeIfPresent(Int.self, forKey: .minRecommendedRAMGB)
         ditRepo = try c.decodeIfPresent(String.self, forKey: .ditRepo)
         usesBundledGemma4 = try c.decodeIfPresent(Bool.self, forKey: .usesBundledGemma4) ?? false
+        usesDevTwoStage = try c.decodeIfPresent(Bool.self, forKey: .usesDevTwoStage) ?? false
     }
 }
 
@@ -192,6 +197,21 @@ enum LTXModelCatalog {
             backend: .ltx2Mlx,
             minRecommendedRAMGB: 64,
             usesBundledGemma4: true
+        ),
+        LTXModel(
+            id: "ltx25_dev",
+            repo: "mlx-community/ltx-2.5-mlx",
+            displayName: "LTX-2.5 Dev (two-stage)",
+            downloadSize: "~100GB",
+            supportsBuiltInAudio: true,
+            qualityWarning: "Official production path: half-res dev+CFG, upscale, distilled-LoRA refine. Same pack as Distilled — no extra download if already cached. Much slower. 64GB+; 128GB comfortable.",
+            recommendedStepsLower: 20,
+            recommendedStepsUpper: 40,
+            tips: "Uses transformer-dev.safetensors. Slider is stage-1 steps (default 30). Stage-2 is 3. CFG default 3. Requires ltx-2-mlx 0.15+.",
+            backend: .ltx2Mlx,
+            minRecommendedRAMGB: 64,
+            usesBundledGemma4: true,
+            usesDevTwoStage: true
         ),
         LTXModel(
             id: "ltx25_distilled_ditq8",
