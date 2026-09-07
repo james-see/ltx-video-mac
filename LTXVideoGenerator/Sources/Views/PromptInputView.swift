@@ -428,7 +428,7 @@ struct PromptInputView: View {
                             )
                         }
 
-                        Text("Position: 0% = first frame, 100% = last frame. There are only ~\(max(1, 1 + (parameters.numFrames - 1) / 8)) distinct latent slots, so nearby positions may land on the same frame.")
+                        Text("Position: 0% = first frame, 100% = last frame. LTX-2/2.3 map to ~\(max(1, 1 + (parameters.numFrames - 1) / 8)) latent slots; LTX-2.5 uses pixel frame indices on ltx-2-mlx.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
