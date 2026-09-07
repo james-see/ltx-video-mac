@@ -10,6 +10,10 @@ apply_quantization uses one bit width; we apply per-layer nn.quantize.
 
 Also skips DurationHead when the pack has split q/k/v keys (0.15.2 expects
 fused in_proj). We always pass --frames.
+
+mlx-community/ltx-2.5-mlx omits ltx-2.5-22b-distilled-lora-450-bf16.safetensors.
+Two-stage Stage 2 then falls back to transformer-distilled.safetensors (mlx-forge
+equivalent at LoRA strength 1.0).
 """
 
 from __future__ import annotations
@@ -175,6 +179,46 @@ def apply_patches() -> None:
     DurationPredictor.from_checkpoint = classmethod(
         lambda cls, model_dir: _safe_duration(model_dir)
     )
+
+    from ltx_pipelines_mlx.ti2vid_two_stages import TI2VidTwoStagesPipeline
+
+    _orig_fuse = TI2VidTwoStagesPipeline._fuse_distilled_lora
+
+    def _fuse_distilled_lora(self, dit):
+        if getattr(self, "low_ram_streaming", False):
+            return _orig_fuse(self, dit)
+        lora_path = self._resolve_safetensors(
+            self.model_dir, Path(self._distilled_lora).stem
+        )
+        if lora_path.exists():
+            return _orig_fuse(self, dit)
+        distilled = self._resolve_safetensors(self.model_dir, "transformer-distilled")
+        if not distilled.exists():
+            return _orig_fuse(self, dit)
+        import mlx.core as mx
+        from ltx_core_mlx.utils.memory import aggressive_cleanup
+        from ltx_core_mlx.utils.weights import load_split_safetensors
+
+        print(
+            "Distilled LoRA missing (%s); loading %s for stage 2 "
+            "(equivalent at LoRA strength 1.0)" % (lora_path.name, distilled.name),
+            file=sys.stderr,
+            flush=True,
+        )
+        try:
+            weights = load_split_safetensors(distilled, prefix="transformer.")
+            dit.load_weights(list(weights.items()))
+            mx.eval(dit.parameters())
+            aggressive_cleanup()
+        except Exception as e:
+            print(
+                "Stage-2 distilled swap failed (%s); re-raising LoRA error" % e,
+                file=sys.stderr,
+                flush=True,
+            )
+            return _orig_fuse(self, dit)
+
+    TI2VidTwoStagesPipeline._fuse_distilled_lora = _fuse_distilled_lora
 
 
 def main() -> int:
