@@ -76,7 +76,7 @@ Progress is shown in the app during download.
 - LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`, ~22GB, default except ≤16GB Macs)
 - LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`, ~19GB, `ltx-2-mlx`; default on ≤16GB)
 - LTX-2.5 Distilled bf16 (`mlx-community/ltx-2.5-mlx`, ~100GB, `ltx-2-mlx` 0.15+)
-- LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + `--dit mlx-community/ltx-2.5-mlx-ditq8`)
+- LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + overlay `mlx-community/ltx-2.5-mlx-ditq8`)
 - MiniMax H3 BF16 (`minimax_h3`, `MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c`)
 - MiniMax H3 int8 (`minimax_h3_int8`, Comfy-Org DiT + MiniMaxAI TE/VAE, ~92GB)
 - MiniMax H3 Turbo (`minimax_h3_turbo`, folded larryvrh v4 LoRA, fixed 6 steps)

@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- LTX-2.5 Q8 DiT (`ltx25_distilled_ditq8`) actually loads `mlx-community/ltx-2.5-mlx-ditq8`. dgrauet 0.15.2 has no `--dit`; we overlay `transformer-distilled.safetensors` into a shadow pack directory.
+
 ## [2.3.78] - 2026-09-06
 
 ### Added

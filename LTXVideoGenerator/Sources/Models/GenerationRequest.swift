@@ -202,7 +202,7 @@ enum LTXModelCatalog {
             qualityWarning: "8-bit quantized DiT on the 2.5 pack. 64GB recommended; 32GB may work with --low-ram.",
             recommendedStepsLower: 8,
             recommendedStepsUpper: 8,
-            tips: "Same 2.5 pack with --dit mlx-community/ltx-2.5-mlx-ditq8. Do not confuse with the -q8 text-encoder repo.",
+            tips: "Same 2.5 pack; overlays mlx-community/ltx-2.5-mlx-ditq8 transformer-distilled.safetensors (0.15.2 has no --dit). Not the -q8 text-encoder repo.",
             backend: .ltx2Mlx,
             minRecommendedRAMGB: 32,
             ditRepo: "mlx-community/ltx-2.5-mlx-ditq8",

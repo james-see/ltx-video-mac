@@ -1021,8 +1021,39 @@ try:
     # Resume incomplete HF blobs; no-op when the snapshot is already complete.
     log(f"Ensuring snapshot {model_repo} (resumes incomplete files)...")
     from huggingface_hub import snapshot_download
+    from pathlib import Path
     model_path = snapshot_download(repo_id=model_repo)
     log(f"Model snapshot ready: {model_path}")
+
+    # v0.15.2 generate has no --dit. Q8 DiT is a one-file repo
+    # (transformer-distilled.safetensors). Shadow the pack so
+    # DistilledPipeline._resolve_safetensors picks the int8 file.
+    if dit_repo:
+        log(f"Ensuring DiT overlay {dit_repo}...")
+        dit_path = snapshot_download(repo_id=dit_repo)
+        q8 = Path(dit_path) / "transformer-distilled.safetensors"
+        if not q8.is_file():
+            matches = list(Path(dit_path).glob("transformer-distilled*.safetensors"))
+            if not matches:
+                raise RuntimeError(
+                    f"DiT repo {dit_repo} has no transformer-distilled*.safetensors"
+                )
+            q8 = matches[0]
+        overlay = Path.home() / "Library/Application Support/LTXVideoGenerator/ltx25-ditq8-overlay"
+        import shutil
+        if overlay.is_symlink() or overlay.is_file():
+            overlay.unlink()
+        elif overlay.is_dir():
+            shutil.rmtree(overlay)
+        overlay.mkdir(parents=True)
+        for item in Path(model_path).iterdir():
+            os.symlink(item, overlay / item.name)
+        dest = overlay / "transformer-distilled.safetensors"
+        if dest.exists() or dest.is_symlink():
+            dest.unlink()
+        os.symlink(q8, dest)
+        model_path = str(overlay)
+        log(f"Q8 DiT overlay: {q8} ({q8.stat().st_size} bytes) -> {dest}")
 
     # mlx-community pack is mlx-lm Gemma 4 (gemma4-12b-ltx-v1/), not
     # dgrauet's root text_encoder.safetensors. Adapter loads that folder
@@ -1043,9 +1074,6 @@ try:
         "-s", str(\(seed)),
         "-o", output_path,
     ]
-    if dit_repo:
-        # v0.15.2 generate has no --dit; keep the pack default transformer.
-        log(f"Skipping DiT override {dit_repo}: this ltx-2-mlx generate does not accept --dit")
     if gemma_repo:
         cmd.extend(["--gemma", gemma_repo])
         log(f"Gemma text encoder: {gemma_repo}")
