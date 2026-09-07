@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.83] - 2026-09-07
+
 ### Added
 - LTX-2.5 / ltx-2-mlx now forwards additional timeline keyframes as repeatable `--image PATH FRAME_IDX STRENGTH` (pixel frame indices).
 
