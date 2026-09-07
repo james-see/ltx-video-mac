@@ -7,7 +7,7 @@ let package = Package(
         .macOS(.v14)
     ],
     dependencies: [
-        .package(url: "https://github.com/pvieito/PythonKit.git", branch: "master")
+        .package(url: "https://github.com/pvieito/PythonKit.git", revision: "1ac25ddddca845ba0184911de9c00e1508948cf8")
     ],
     targets: [
         .executableTarget(

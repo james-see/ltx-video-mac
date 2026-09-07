@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Pin PythonKit to `1ac25ddd`. Upstream `main` now requires Swift 6.2 / macOS 26 and broke the Xcode 16.2 release archive.
+
 ## [2.3.81] - 2026-09-07
 
 ### Fixed

@@ -481,8 +481,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pvieito/PythonKit.git";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = revision;
+				revision = 1ac25ddddca845ba0184911de9c00e1508948cf8;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
