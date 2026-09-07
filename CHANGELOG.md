@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Fixed
-- LTX-2.5 Dev two-stage no longer dies after stage 1: `mlx-community/ltx-2.5-mlx` ships no distilled LoRA, so Stage 2 loads `transformer-distilled.safetensors` (equivalent at LoRA strength 1.0).
+- LTX-2.5 Dev two-stage overlays the official distilled LoRA (`ltx-2.5-22b-distilled-lora-450-bf16.safetensors`, ~8.3GB from `dgrauet/ltx-2.5-mlx`) so Stage 2 fuses into the dev DiT. The mlx-community pack does not ship that file.
 
 ## [2.3.80] - 2026-09-07
 

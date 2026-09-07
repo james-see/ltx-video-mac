@@ -1064,6 +1064,52 @@ try:
             "Missing ltx25_community_adapter.py in the app bundle. Rebuild the app."
         )
     two_stage = \(selectedModel.usesDevTwoStage ? "True" : "False")
+    # mlx-community pack has transformer-dev but not the Stage-2 distilled LoRA.
+    # Official two-stage fuses that LoRA into the *dev* DiT (not a distilled swap).
+    if two_stage:
+        lora_name = "ltx-2.5-22b-distilled-lora-450-bf16.safetensors"
+        pack_lora = Path(model_path) / lora_name
+        if not pack_lora.is_file():
+            os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
+            from huggingface_hub import hf_hub_download
+            lora_file = None
+            last_err = None
+            for repo, filename in (
+                ("dgrauet/ltx-2.5-mlx", lora_name),
+                ("Lightricks/LTX-2.5", "loras/" + lora_name),
+            ):
+                log(f"Ensuring distilled LoRA {filename} from {repo}...")
+                for attempt in range(1, 8):
+                    try:
+                        lora_file = hf_hub_download(repo_id=repo, filename=filename)
+                        last_err = None
+                        break
+                    except Exception as e:
+                        last_err = e
+                        log(f"LoRA download retry {attempt}: {type(e).__name__}: {e}")
+                        time.sleep(min(60, 2 ** attempt))
+                if lora_file:
+                    break
+            if not lora_file:
+                raise RuntimeError(
+                    "Two-stage Dev needs ltx-2.5-22b-distilled-lora-450-bf16.safetensors "
+                    "(~8.3GB). Accept the license on https://huggingface.co/dgrauet/ltx-2.5-mlx "
+                    f"or https://huggingface.co/Lightricks/LTX-2.5 and retry. Last error: {last_err}"
+                )
+            overlay = Path.home() / "Library/Application Support/LTXVideoGenerator/ltx25-dev-overlay"
+            if overlay.is_symlink() or overlay.is_file():
+                overlay.unlink()
+            elif overlay.is_dir():
+                shutil.rmtree(overlay)
+            overlay.mkdir(parents=True)
+            for item in Path(model_path).iterdir():
+                os.symlink(item, overlay / item.name)
+            dest = overlay / lora_name
+            if dest.exists() or dest.is_symlink():
+                dest.unlink()
+            os.symlink(lora_file, dest)
+            model_path = str(overlay)
+            log(f"Dev LoRA overlay: {lora_file} ({Path(lora_file).stat().st_size} bytes) -> {dest}")
     cmd = [sys.executable, adapter, "generate"] + [
         "--prompt", prompt,
         "--model", model_path,
@@ -1080,6 +1126,7 @@ try:
             "--stage1-steps", str(\(params.numInferenceSteps)),
             "--stage2-steps", "3",
             "--cfg-scale", str(\(params.guidanceScale)),
+            "--distilled-lora", "ltx-2.5-22b-distilled-lora-450-bf16.safetensors",
         ])
         log(
             f"Two-stage dev: stage1={int(\(params.numInferenceSteps))} "

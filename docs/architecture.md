@@ -80,7 +80,7 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 | Backend | `ltx2Mlx` (`ltx-2-mlx generate --distilled`) |
 | Download size | ~100GB pack (Gemma 4 bundled) |
 | Q8 DiT overlay | `mlx-community/ltx-2.5-mlx-ditq8` `transformer-distilled.safetensors` swapped into a shadow pack dir (`ltx25_distilled_ditq8`). dgrauet 0.15.2 has no `--dit`. |
-| Steps | Distilled: fixed 8, CFG=1. Dev (`ltx25_dev`): `--two-stage` + `transformer-dev.safetensors`, stage-1 20–40 (default 30), stage-2 3, CFG 3 |
+| Steps | Distilled: fixed 8, CFG=1. Dev (`ltx25_dev`): `--two-stage` + `transformer-dev` + official distilled LoRA fuse for stage 2; first Dev generate downloads `ltx-2.5-22b-distilled-lora-450-bf16` (~8.3GB) |
 | Text encoder | Gemma-4-unified inside the pack (`gemma4-12b-ltx-v1/`; adapter maps mlx-lm keys for dgrauet 0.15.2) |
 | Install | Git (`dgrauet/ltx-2-mlx` @ v0.15.2) or `~/projects/ltx-2-mlx` + `uv run`. Not required for 2.3 users. |
 

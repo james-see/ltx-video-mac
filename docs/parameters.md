@@ -29,7 +29,7 @@ Select the model in Preferences. LTX-2 / 2.3 `notapalindrome` packs use `mlx-vid
 | LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`) | 19B (Q4) | ~22GB | BigVGAN | Quantized; default for new installs except ≤16GB Macs |
 | LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`) | 22B mixed | ~19GB | BigVGAN | `ltx-2-mlx`; Gemma 3 via `--gemma`; default on ≤16GB; vendor ~14GB claim |
 | LTX-2.5 Distilled (`mlx-community/ltx-2.5-mlx`) | 22B | ~100GB | BigVGAN | Gemma 4 in `gemma4-12b-ltx-v1/`; `ltx-2-mlx` 0.15+; 8 steps |
-| LTX-2.5 Dev two-stage (`ltx25_dev`) | 22B | ~100GB (same pack) | BigVGAN | `--two-stage` + `transformer-dev`; stage-1 30 / CFG 3 / stage-2 3 |
+| LTX-2.5 Dev two-stage (`ltx25_dev`) | 22B | ~100GB + ~8GB LoRA | BigVGAN | `--two-stage` + `transformer-dev` + fuse `ltx-2.5-22b-distilled-lora-450-bf16`; stage-1 30 / CFG 3 / stage-2 3 |
 | LTX-2.5 Distilled Q8 DiT | 22B (Q8 DiT) | ~100GB + ~21GB | BigVGAN | overlay `mlx-community/ltx-2.5-mlx-ditq8` |
 | MiniMax H3 (`MiniMaxAI/MiniMax-H3`) | 33B | ~144GB | H3 audio VAE | Native `h3.c`; 24 fps; frames snap to 5+17n |
 

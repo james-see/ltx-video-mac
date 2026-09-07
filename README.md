@@ -116,7 +116,7 @@ curl -X POST http://127.0.0.1:8420/generate \
 
 Omit `source_image_path` for text-to-video generation. The source image path is resolved and validated before the request is queued.
 
-Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_dev`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`. `text_encoder_id` is ignored for 2.5 and H3. `ltx25_dev` uses the same ~100GB pack as Distilled (`--two-stage`, slider is stage-1 steps, CFG applies).
+Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_dev`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`. `text_encoder_id` is ignored for 2.5 and H3. `ltx25_dev` is official two-stage (dev DiT + fuse distilled LoRA); first run downloads `ltx-2.5-22b-distilled-lora-450-bf16` (~8.3GB).
 
 ### Gemma Prompt Enhancement
 
