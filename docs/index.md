@@ -79,7 +79,8 @@ Generate videos like:
 ## Getting Help
 
 - [Installation Guide](installation) - Complete setup instructions
-- [Usage Guide](usage) - Learn how to get the best results
+- [Usage Guide](usage) - Learn how to get the best results (includes LTX-2.5 prompting)
+- [Example Prompts](https://github.com/james-see/ltx-video-mac/blob/main/EXAMPLES.md) - Copy-paste LTX-2.5-style prompts
 - [Parameters Reference](parameters) - Understand all settings
 - [Troubleshooting](troubleshooting) - Common issues and solutions
 - [Architecture](architecture) - Technical details of the pipeline and models

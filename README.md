@@ -134,15 +134,16 @@ When enabled in **Settings > Generation**, Gemma rewrites your prompt before gen
 
 If enhancement fails for any reason, generation automatically falls back to your original prompt.
 
-### Tips for Better Results
+### Tips for Better Results (LTX-2.5)
 
-- Be descriptive: "A river flowing through a misty forest at dawn" works better than "river forest"
-- Use camera directions: "The camera slowly pans across..."
-- Specify lighting: "golden hour lighting", "dramatic shadows"
-- Include motion: "waves crashing", "leaves falling"
+Official style: [ltx.io prompt guide](https://ltx.io/blog/ltx-2-5-prompt-guide) · [docs.ltx.io](https://docs.ltx.io/api-documentation/implementation-guides/prompting-guide).
 
-For more detailed, copy-paste-ready prompts, see **[Example Prompts](EXAMPLES.md)**.
+- One flowing present-tense paragraph covering shot, scene/lighting, action, characters (physical cues), camera, audio
+- Spoken lines only in `"quotes"`; pauses as action (*he pauses*), not bare `Beat.`
+- Multishot: name cuts in prose (*A hard cut transitions to…*) — no `START FRAME` / JUMP CUT lists
+- On Mac Distilled/Dev, prefer a single continuous take for dialogue reliability
 
+Copy-paste examples: **[EXAMPLES.md](EXAMPLES.md)**.
 ## Audio Features
 
 ### Built-in Audio (Default)

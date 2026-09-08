@@ -46,7 +46,7 @@ App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_
 | Official feature | Status here |
 |---|---|
 | Distilled 8-step / CFG=1 | Yes |
-| Dev + distilled LoRA two-stage | Yes (`ltx25_dev`; LoRA from `dgrauet/ltx-2.5-mlx` or `Lightricks/LTX-2.5` `loras/`) |
+| Dev + distilled LoRA two-stage | Yes (`ltx25_dev`; LoRA from `dgrauet/ltx-2.5-mlx` only — gated) |
 | Gemma 4 12B TE | Yes (pack + adapter) |
 | Prompt enhancer | Yes → `--enhance-prompt` (not Gemma 3 preview path) |
 | Audio VAE + vocoder | Yes (in pack) |
@@ -59,6 +59,8 @@ App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_
 | Disable audio | **Ignored** on 0.15.2 ([upstream #126](https://github.com/dgrauet/ltx-2-mlx/issues/126)) |
 
 Parity epic: https://github.com/james-see/ltx-video-mac/issues/85
+
+**Prompting:** official LTX-2.5 style only — [ltx.io](https://ltx.io/blog/ltx-2-5-prompt-guide) / [docs.ltx.io](https://docs.ltx.io/api-documentation/implementation-guides/prompting-guide). App copy: `EXAMPLES.md`, `docs/usage.md`, README tips. Flowing present-tense paragraphs, quoted dialogue, prose hard cuts. No `START FRAME` / JUMP CUT lists. Prefer single continuous take on Mac Distilled/Dev until multishot/DFR is wired.
 
 Do **not** port 2.5 into `mlx-video-with-audio`. Pin install: `Ltx2MlxInstall` in `PythonEnvironment.swift` (`v0.15.2` core + pipelines) + `mlx-lm>=0.31.2`. Only required when a 2.5 / 12GB model is selected.
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- Prompt docs follow official LTX-2.5 guidance (`EXAMPLES.md`, README tips, `docs/usage.md`): flowing paragraphs, quoted dialogue, prose hard cuts — no `START FRAME` / JUMP CUT lists.
+
+### Fixed
+- LTX-2.5 Dev LoRA downloads only from `dgrauet/ltx-2.5-mlx` (no Lightricks fallback). Gated 403 fails fast with that accept link and “run Generate again.”
+
 ## [2.3.83] - 2026-09-07
 
 ### Added

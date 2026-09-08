@@ -22,13 +22,13 @@ Learn how to get the best results from LTX Video Generator.
 
 ### 1. Write Your Prompt
 
-Enter a descriptive text prompt in the main text field. The more detail you provide, the better the results.
+Enter a descriptive text prompt. For LTX-2.5, write one flowing present-tense paragraph (shot, lighting, action, character, camera, audio). Spoken lines only in quotes.
 
 **Good prompt:**
-> "The camera slowly pans across a misty forest at dawn, with rays of golden sunlight filtering through the trees"
+> Handheld medium close-up, cool overcast light on a street corner. A busker in his late 40s — weathered face, grey stubble, battered acoustic guitar — stops mid-riff and looks past the camera. Soft traffic hum. He speaks in a low urgent whisper, "They're coming." He pauses and holds the silence.
 
 **Less effective:**
-> "forest"
+> "busker scary" / `Beat.` / `JUMP CUT 1 (2.5–5s): …`
 
 ### 2. Choose a Preset
 
@@ -146,43 +146,30 @@ Add audio to previously generated videos:
 
 When combining voiceover and music, the music is automatically ducked to 20% volume so the voice remains clear.
 
-## Writing Effective Prompts
+## Writing Effective Prompts (LTX-2.5)
 
-### Include Camera Movement
+Follow the official LTX-2.5 guides: [prompt guide](https://ltx.io/blog/ltx-2-5-prompt-guide) · [docs](https://docs.ltx.io/api-documentation/implementation-guides/prompting-guide). Copy-paste examples: [EXAMPLES.md](https://github.com/james-see/ltx-video-mac/blob/main/EXAMPLES.md).
 
-```
-"The camera slowly pans left revealing..."
-"A drone shot flying over..."
-"Close-up tracking shot of..."
-"The camera pushes in toward..."
-```
+### Six ingredients
 
-### Describe Motion
+1. **Shot** — scale / lens / genre look  
+2. **Scene** — lighting, palette, atmosphere  
+3. **Action** — present-tense verbs that move  
+4. **Characters** — age, clothes, physical emotion cues (not abstract labels)  
+5. **Camera** — how and when it moves  
+6. **Audio** — ambience, music, speech  
 
-```
-"waves gently crashing on the shore"
-"leaves falling in slow motion"
-"clouds drifting across the sky"
-"a person walking through..."
-```
+### Structure
 
-### Specify Lighting
+- **Single take:** one flowing paragraph, ~4–8 sentences, present tense.  
+- **Dialogue:** only spoken words in `"quotes"`; name language / accent / delivery.  
+- **Pauses:** write as action (*he pauses*, *holds the silence*). Avoid bare `Beat.` — the model may speak it.  
+- **Multishot:** one chronological paragraph; name cuts in prose (*A hard cut transitions to…*); re-ID subjects and state audio continuity. Do **not** use `START FRAME` / numbered JUMP CUT lists.  
+- **Mac / Distilled–Dev:** prefer a single continuous take for dialogue + face; native multishot / Prompt Relay / DFR is incomplete on `ltx-2-mlx`.
 
-```
-"at golden hour with warm lighting"
-"under dramatic storm clouds"
-"illuminated by neon city lights"
-"in soft diffused morning light"
-```
+### Leave enhancement off when dense
 
-### Add Atmosphere
-
-```
-"with fog rolling through the valley"
-"rain drops falling on the window"
-"dust particles floating in sunbeams"
-"snow gently falling"
-```
+A well-formed 2.5 prompt often needs no rewrite. Gemma / `--enhance-prompt` helps short or foreign-model prompts; leave it off when you already wrote the full cinematic paragraph.
 
 ## Using the Queue
 

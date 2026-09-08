@@ -104,6 +104,15 @@ class LTXBridge {
             return metalInteractivityUserHint
         }
 
+        if low.contains("ltx25_dev_lora_gated")
+            || (low.contains("gatedrepoerror")
+                && (low.contains("ltx-2.5-22b-distilled-lora")
+                    || low.contains("dgrauet/ltx-2.5-mlx")))
+            || (low.contains("two-stage dev needs") && low.contains("distilled-lora"))
+        {
+            return Self.ltx25DevLoraGatedUserHint
+        }
+
         // Do not match a bare "-9" — UUIDs like -9996 plus a RuntimeError traceback
         // were misread as jetsam after LTX-2.5 DurationHead KeyError.
         let looksLikeSigKill = low.contains("sigkill")
@@ -115,6 +124,13 @@ class LTXBridge {
         }
         return nil
     }
+
+    /// Gated HF access for the MLX Dev LoRA on dgrauet/ltx-2.5-mlx (~8.3GB).
+    private static let ltx25DevLoraGatedUserHint = """
+    LTX-2.5 Dev needs the distilled LoRA from dgrauet/ltx-2.5-mlx (~8.3GB). Accept access on that page while logged in as the same Hugging Face account as `hf auth login`, then run Generate again:
+
+    https://huggingface.co/dgrauet/ltx-2.5-mlx
+    """
     
     private(set) var isModelLoaded = false
     private var pythonHome: String?
@@ -1086,33 +1102,38 @@ try:
     # Official two-stage fuses that LoRA into the *dev* DiT (not a distilled swap).
     if two_stage:
         lora_name = "ltx-2.5-22b-distilled-lora-450-bf16.safetensors"
+        lora_repo = "dgrauet/ltx-2.5-mlx"
         pack_lora = Path(model_path) / lora_name
         if not pack_lora.is_file():
             os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
             from huggingface_hub import hf_hub_download
+            from huggingface_hub.errors import GatedRepoError
             lora_file = None
             last_err = None
-            for repo, filename in (
-                ("dgrauet/ltx-2.5-mlx", lora_name),
-                ("Lightricks/LTX-2.5", "loras/" + lora_name),
-            ):
-                log(f"Ensuring distilled LoRA {filename} from {repo}...")
-                for attempt in range(1, 8):
-                    try:
-                        lora_file = hf_hub_download(repo_id=repo, filename=filename)
-                        last_err = None
-                        break
-                    except Exception as e:
-                        last_err = e
-                        log(f"LoRA download retry {attempt}: {type(e).__name__}: {e}")
-                        time.sleep(min(60, 2 ** attempt))
-                if lora_file:
+            log(f"Ensuring distilled LoRA {lora_name} from {lora_repo}...")
+            for attempt in range(1, 8):
+                try:
+                    lora_file = hf_hub_download(repo_id=lora_repo, filename=lora_name)
+                    last_err = None
                     break
+                except GatedRepoError as e:
+                    last_err = e
+                    log(f"LoRA gated on {lora_repo}: {e}")
+                    raise RuntimeError(
+                        "LTX25_DEV_LORA_GATED: LTX-2.5 Dev needs the distilled LoRA "
+                        f"from {lora_repo} (~8.3GB). Accept access on that page "
+                        "(same account as `hf auth login`), then run Generate again:\n"
+                        f"https://huggingface.co/{lora_repo}"
+                    ) from e
+                except Exception as e:
+                    last_err = e
+                    log(f"LoRA download retry {attempt}: {type(e).__name__}: {e}")
+                    time.sleep(min(60, 2 ** attempt))
             if not lora_file:
                 raise RuntimeError(
-                    "Two-stage Dev needs ltx-2.5-22b-distilled-lora-450-bf16.safetensors "
-                    "(~8.3GB). Accept the license on https://huggingface.co/dgrauet/ltx-2.5-mlx "
-                    f"or https://huggingface.co/Lightricks/LTX-2.5 and retry. Last error: {last_err}"
+                    f"Two-stage Dev needs {lora_name} from {lora_repo} (~8.3GB). "
+                    f"Accept access on https://huggingface.co/{lora_repo} "
+                    f"then run Generate again. Last error: {last_err}"
                 )
             overlay = Path.home() / "Library/Application Support/LTXVideoGenerator/ltx25-dev-overlay"
             if overlay.is_symlink() or overlay.is_file():
