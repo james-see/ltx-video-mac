@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.84] - 2026-09-08
+
 ### Changed
 - LTX-2.5 catalog packs point at `notapalindrome/ltx25-mlx` and `notapalindrome/ltx25-mlx-ditq8` (Dev LoRA bundled in the main pack; no separate `dgrauet` LoRA download).
 - If `mlx-community/ltx-2.5-mlx` (or `-ditq8`) is already fully cached, reuse it for the notapalindrome catalog ids and skip re-download (same MLX tensors). Cached Dev LoRA from `dgrauet/ltx-2.5-mlx` is reused the same way.
