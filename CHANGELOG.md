@@ -8,10 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Changed
+- LTX-2.5 catalog packs point at `notapalindrome/ltx25-mlx` and `notapalindrome/ltx25-mlx-ditq8` (Dev LoRA bundled in the main pack; no separate `dgrauet` LoRA download).
+- If `mlx-community/ltx-2.5-mlx` (or `-ditq8`) is already fully cached, reuse it for the notapalindrome catalog ids and skip re-download (same MLX tensors). Cached Dev LoRA from `dgrauet/ltx-2.5-mlx` is reused the same way.
 - Prompt docs follow official LTX-2.5 guidance (`EXAMPLES.md`, README tips, `docs/usage.md`): flowing paragraphs, quoted dialogue, prose hard cuts — no `START FRAME` / JUMP CUT lists.
 
 ### Fixed
-- LTX-2.5 Dev LoRA downloads only from `dgrauet/ltx-2.5-mlx` (no Lightricks fallback). Gated 403 fails fast with that accept link and “run Generate again.”
+- LTX-2.5 Dev LoRA is resolved from the selected pack first; gated 403 hints point at `notapalindrome/ltx25-mlx`.
 
 ## [2.3.83] - 2026-09-07
 

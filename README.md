@@ -75,8 +75,8 @@ Progress is shown in the app during download.
 - LTX-2.3 Unified Beta (`notapalindrome/ltx23-mlx-av`, ~48GB)
 - LTX-2.3 Distilled Q4 Beta (`notapalindrome/ltx23-mlx-av-q4`, ~22GB, default except ≤16GB Macs)
 - LTX-2.3 12GB RAM Optimized (`baa-ai/LTX-2.3-22B-RAM-12GB-MLX`, ~19GB, `ltx-2-mlx`; default on ≤16GB)
-- LTX-2.5 Distilled bf16 (`mlx-community/ltx-2.5-mlx`, ~100GB, `ltx-2-mlx` 0.15+)
-- LTX-2.5 Distilled Q8 DiT (`mlx-community/ltx-2.5-mlx` + overlay `mlx-community/ltx-2.5-mlx-ditq8`)
+- LTX-2.5 Distilled bf16 (`notapalindrome/ltx25-mlx`, ~110GB w/ Dev LoRA, `ltx-2-mlx` 0.15+)
+- LTX-2.5 Distilled Q8 DiT (`notapalindrome/ltx25-mlx` + overlay `notapalindrome/ltx25-mlx-ditq8`)
 - MiniMax H3 BF16 (`minimax_h3`, `MiniMaxAI/MiniMax-H3`, ~144GB, native `h3.c`)
 - MiniMax H3 int8 (`minimax_h3_int8`, Comfy-Org DiT + MiniMaxAI TE/VAE, ~92GB)
 - MiniMax H3 Turbo (`minimax_h3_turbo`, folded larryvrh v4 LoRA, fixed 6 steps)
@@ -116,7 +116,7 @@ curl -X POST http://127.0.0.1:8420/generate \
 
 Omit `source_image_path` for text-to-video generation. The source image path is resolved and validated before the request is queued.
 
-Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_dev`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`. `text_encoder_id` is ignored for 2.5 and H3. `ltx25_dev` is official two-stage (dev DiT + fuse distilled LoRA); first run downloads `ltx-2.5-22b-distilled-lora-450-bf16` (~8.3GB).
+Other `model_id` values: `ltx23_distilled_q4` (default), `ltx25_distilled`, `ltx25_dev`, `ltx25_distilled_ditq8`, `minimax_h3`, `minimax_h3_int8`, `minimax_h3_turbo`. `text_encoder_id` is ignored for 2.5 and H3. `ltx25_dev` is official two-stage (dev DiT + fuse distilled LoRA bundled in `notapalindrome/ltx25-mlx`).
 
 ### Gemma Prompt Enhancement
 
@@ -259,8 +259,8 @@ open LTXVideoGenerator/LTXVideoGenerator.xcodeproj
   - [LTX-2.3 Unified Beta](https://huggingface.co/notapalindrome/ltx23-mlx-av) (~48GB)
   - [LTX-2.3 Distilled Q4](https://huggingface.co/notapalindrome/ltx23-mlx-av-q4) (~22GB, default except ≤16GB)
   - [LTX-2.3 12GB RAM Optimized](https://huggingface.co/baa-ai/LTX-2.3-22B-RAM-12GB-MLX) (~19GB, `ltx-2-mlx`, mixed-precision)
-  - [LTX-2.5 Distilled](https://huggingface.co/mlx-community/ltx-2.5-mlx) (~100GB, `ltx-2-mlx` 0.15+, Gemma 4 bundled)
-  - [LTX-2.5 Distilled Q8 DiT](https://huggingface.co/mlx-community/ltx-2.5-mlx-ditq8) (same pack + DiT overlay)
+  - [LTX-2.5 Distilled](https://huggingface.co/notapalindrome/ltx25-mlx) (~110GB w/ LoRA, `ltx-2-mlx` 0.15+, Gemma 4 bundled)
+  - [LTX-2.5 Distilled Q8 DiT](https://huggingface.co/notapalindrome/ltx25-mlx-ditq8) (same pack + DiT overlay)
   - [MiniMax H3](https://huggingface.co/MiniMaxAI/MiniMax-H3) (~144GB, native [h3.c](https://github.com/antirez/h3.c))
 - **Precision**: bfloat16 (LTX); H3 is official BF16, Comfy-Org int8, or folded Turbo on the same Metal `h3`
 

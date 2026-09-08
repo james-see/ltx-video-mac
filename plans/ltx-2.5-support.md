@@ -15,9 +15,9 @@ Status: implemented in-app. dgrauet/ltx-2-mlx **0.15.x already has LTX-2.5** —
 | id | repo | backend | notes |
 |---|---|---|---|
 | `ltx23_distilled_q4` | notapalindrome/ltx23-mlx-av-q4 | mlxVideoWithAudio | default |
-| `ltx25_distilled` | mlx-community/ltx-2.5-mlx (~100GB) | ltx2Mlx | Gemma 4 bundled, 8 steps, 64GB+ |
-| `ltx25_dev` | same pack + overlay `ltx-2.5-22b-distilled-lora-450-bf16` | ltx2Mlx | official two-stage: fuse LoRA into dev DiT; ~8.3GB extra |
-| `ltx25_distilled_ditq8` | same pack + overlay `mlx-community/ltx-2.5-mlx-ditq8` | ltx2Mlx | 32GB+ with --low-ram |
+| `ltx25_distilled` | notapalindrome/ltx25-mlx (~110GB w/ LoRA) | ltx2Mlx | Gemma 4 bundled, 8 steps, 64GB+ |
+| `ltx25_dev` | same pack (LoRA in-repo) | ltx2Mlx | official two-stage: fuse LoRA into dev DiT |
+| `ltx25_distilled_ditq8` | same pack + overlay `notapalindrome/ltx25-mlx-ditq8` | ltx2Mlx | 32GB+ with --low-ram |
 | `minimax_h3` | MiniMaxAI/MiniMax-H3 (~144GB) | h3c | native Metal |
 
 `mlx-community/ltx-2.5-mlx-q8` is the **text encoder**, not the DiT. Do not treat it as a DiT quant.

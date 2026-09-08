@@ -27,17 +27,19 @@ If a PR changes the Python CLI (`--keyframe`, kwargs on `generate_video_with_aud
 
 ## LTX-2.5 reference
 
-Upstream: [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) (CUDA `ltx-pipelines` / Diffusers / Comfy). Mac path: MLX conversion [mlx-community/ltx-2.5-mlx](https://huggingface.co/mlx-community/ltx-2.5-mlx) + runtime [dgrauet/ltx-2-mlx](https://github.com/dgrauet/ltx-2-mlx) `@v0.15.2`. Plan: `plans/ltx-2.5-support.md`.
+Upstream: [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) (CUDA `ltx-pipelines` / Diffusers / Comfy). Mac path: app pack [notapalindrome/ltx25-mlx](https://huggingface.co/notapalindrome/ltx25-mlx) (MLX conversion provenance: [mlx-community/ltx-2.5-mlx](https://huggingface.co/mlx-community/ltx-2.5-mlx)) + runtime [dgrauet/ltx-2-mlx](https://github.com/dgrauet/ltx-2-mlx) `@v0.15.2`. Plan: `plans/ltx-2.5-support.md`.
 
 ### Catalog ↔ official model family
 
 | App `model_id` | Pack | CLI shape | Maps to official |
 |---|---|---|---|
-| `ltx25_distilled` | `mlx-community/ltx-2.5-mlx` (~100GB) | `--distilled` | Distilled DiT, fixed **8 steps, CFG=1** |
-| `ltx25_dev` | same + overlay LoRA ~8.3GB | `--two-stage` + `transformer-dev` + fuse `ltx-2.5-22b-distilled-lora-450-bf16` | Dev two-stage (half-res + spatial upscale + distilled-LoRA refine); stage-1 steps/CFG from UI (defaults 30 / 3), stage-2 = 3 |
-| `ltx25_distilled_ditq8` | same + `mlx-community/ltx-2.5-mlx-ditq8` overlay | `--distilled` on shadowed pack | Distilled + Q8 DiT (0.15.2 has no `--dit`) |
+| `ltx25_distilled` | `notapalindrome/ltx25-mlx` (~110GB w/ LoRA) | `--distilled` | Distilled DiT, fixed **8 steps, CFG=1** |
+| `ltx25_dev` | same (LoRA bundled) | `--two-stage` + `transformer-dev` + fuse `ltx-2.5-22b-distilled-lora-450-bf16` | Dev two-stage (half-res + spatial upscale + distilled-LoRA refine); stage-1 steps/CFG from UI (defaults 30 / 3), stage-2 = 3 |
+| `ltx25_distilled_ditq8` | same + `notapalindrome/ltx25-mlx-ditq8` overlay | `--distilled` on shadowed pack | Distilled + Q8 DiT (0.15.2 has no `--dit`) |
 
 Gemma 4 is **bundled** in `gemma4-12b-ltx-v1/`. Do not use the Gemma 3 picker for 2.5. `mlx-community/ltx-2.5-mlx-q8` is the **text encoder**, not a DiT quant — never catalog it as DiT.
+
+App reuses a complete local `mlx-community/ltx-2.5-mlx` (or `-ditq8`) cache for the notapalindrome catalog ids — same conversion, skip re-download. Dev LoRA similarly reuses a cached `dgrauet/ltx-2.5-mlx` file when the pack copy is absent.
 
 App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_community_adapter.py` (patches Gemma 4 path + mixed-precision quant + DurationHead skip). Keep that file in the Xcode Resources target.
 
@@ -46,7 +48,7 @@ App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_
 | Official feature | Status here |
 |---|---|
 | Distilled 8-step / CFG=1 | Yes |
-| Dev + distilled LoRA two-stage | Yes (`ltx25_dev`; LoRA from `dgrauet/ltx-2.5-mlx` only — gated) |
+| Dev + distilled LoRA two-stage | Yes (`ltx25_dev`; LoRA bundled in `notapalindrome/ltx25-mlx`) |
 | Gemma 4 12B TE | Yes (pack + adapter) |
 | Prompt enhancer | Yes → `--enhance-prompt` (not Gemma 3 preview path) |
 | Audio VAE + vocoder | Yes (in pack) |

@@ -2,8 +2,8 @@
 """ltx-2-mlx generate wrapper for community LTX packs.
 
 dgrauet 0.15.2 only treats a pack as Gemma 4 when text_encoder.safetensors
-sits at the snapshot root. mlx-community/ltx-2.5-mlx ships the tower as
-mlx-lm layout under gemma4-12b-ltx-v1/.
+sits at the snapshot root. notapalindrome/ltx25-mlx (and mlx-community/ltx-2.5-mlx)
+ship the tower as mlx-lm layout under gemma4-12b-ltx-v1/.
 
 baa-ai/LTX-2.3-22B-RAM-12GB-MLX is mixed-precision (2–8 bit). Stock
 apply_quantization uses one bit width; we apply per-layer nn.quantize.

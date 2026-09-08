@@ -107,6 +107,7 @@ class LTXBridge {
         if low.contains("ltx25_dev_lora_gated")
             || (low.contains("gatedrepoerror")
                 && (low.contains("ltx-2.5-22b-distilled-lora")
+                    || low.contains("notapalindrome/ltx25-mlx")
                     || low.contains("dgrauet/ltx-2.5-mlx")))
             || (low.contains("two-stage dev needs") && low.contains("distilled-lora"))
         {
@@ -125,11 +126,11 @@ class LTXBridge {
         return nil
     }
 
-    /// Gated HF access for the MLX Dev LoRA on dgrauet/ltx-2.5-mlx (~8.3GB).
+    /// Gated HF access for the notapalindrome LTX-2.5 pack (LoRA is bundled in-repo).
     private static let ltx25DevLoraGatedUserHint = """
-    LTX-2.5 Dev needs the distilled LoRA from dgrauet/ltx-2.5-mlx (~8.3GB). Accept access on that page while logged in as the same Hugging Face account as `hf auth login`, then run Generate again:
+    LTX-2.5 Dev needs the distilled LoRA inside notapalindrome/ltx25-mlx (~8.3GB, bundled with the pack). Accept access on that page while logged in as the same Hugging Face account as `hf auth login`, then run Generate again:
 
-    https://huggingface.co/dgrauet/ltx-2.5-mlx
+    https://huggingface.co/notapalindrome/ltx25-mlx
     """
     
     private(set) var isModelLoaded = false
@@ -1053,18 +1054,48 @@ try:
         )
 
     # Resume incomplete HF blobs; no-op when the snapshot is already complete.
-    log(f"Ensuring snapshot {model_repo} (resumes incomplete files)...")
-    from huggingface_hub import snapshot_download
+    # notapalindrome packs are the same MLX tensors as the mlx-community
+    # originals — reuse a complete local community cache and skip ~100GB redownload.
+    from huggingface_hub import snapshot_download, hf_hub_download
+    from huggingface_hub.utils import LocalEntryNotFoundError
     from pathlib import Path
-    model_path = snapshot_download(repo_id=model_repo)
-    log(f"Model snapshot ready: {model_path}")
+    import shutil
+
+    LTX25_PACK_ALIASES = {
+        "notapalindrome/ltx25-mlx": "mlx-community/ltx-2.5-mlx",
+        "notapalindrome/ltx25-mlx-ditq8": "mlx-community/ltx-2.5-mlx-ditq8",
+    }
+
+    def resolve_snapshot(repo_id: str) -> str:
+        try:
+            path = snapshot_download(repo_id=repo_id, local_files_only=True)
+            log(f"Using cached snapshot {repo_id}: {path}")
+            return path
+        except LocalEntryNotFoundError:
+            pass
+        legacy = LTX25_PACK_ALIASES.get(repo_id)
+        if legacy:
+            try:
+                path = snapshot_download(repo_id=legacy, local_files_only=True)
+                log(
+                    f"{repo_id} is the same MLX conversion as already-downloaded "
+                    f"{legacy} — skipping re-download: {path}"
+                )
+                return path
+            except LocalEntryNotFoundError:
+                pass
+        log(f"Ensuring snapshot {repo_id} (resumes incomplete files)...")
+        path = snapshot_download(repo_id=repo_id)
+        log(f"Model snapshot ready: {path}")
+        return path
+
+    model_path = resolve_snapshot(model_repo)
 
     # v0.15.2 generate has no --dit. Q8 DiT is a one-file repo
     # (transformer-distilled.safetensors). Shadow the pack so
     # DistilledPipeline._resolve_safetensors picks the int8 file.
     if dit_repo:
-        log(f"Ensuring DiT overlay {dit_repo}...")
-        dit_path = snapshot_download(repo_id=dit_repo)
+        dit_path = resolve_snapshot(dit_repo)
         q8 = Path(dit_path) / "transformer-distilled.safetensors"
         if not q8.is_file():
             matches = list(Path(dit_path).glob("transformer-distilled*.safetensors"))
@@ -1074,7 +1105,6 @@ try:
                 )
             q8 = matches[0]
         overlay = Path.home() / "Library/Application Support/LTXVideoGenerator/ltx25-ditq8-overlay"
-        import shutil
         if overlay.is_symlink() or overlay.is_file():
             overlay.unlink()
         elif overlay.is_dir():
@@ -1089,7 +1119,7 @@ try:
         model_path = str(overlay)
         log(f"Q8 DiT overlay: {q8} ({q8.stat().st_size} bytes) -> {dest}")
 
-    # mlx-community pack is mlx-lm Gemma 4 (gemma4-12b-ltx-v1/), not
+    # notapalindrome/ltx25-mlx is mlx-lm Gemma 4 (gemma4-12b-ltx-v1/), not
     # dgrauet's root text_encoder.safetensors. Adapter loads that folder
     # and skips DurationHead fused-in_proj mismatch (we pass --frames).
     adapter = "\(adapterPath)"
@@ -1098,37 +1128,52 @@ try:
             "Missing ltx25_community_adapter.py in the app bundle. Rebuild the app."
         )
     two_stage = \(selectedModel.usesDevTwoStage ? "True" : "False")
-    # mlx-community pack has transformer-dev but not the Stage-2 distilled LoRA.
-    # Official two-stage fuses that LoRA into the *dev* DiT (not a distilled swap).
+    # Official two-stage fuses distilled LoRA into the *dev* DiT. notapalindrome
+    # pack ships the LoRA in-repo; community/legacy caches may need a one-file pull.
     if two_stage:
         lora_name = "ltx-2.5-22b-distilled-lora-450-bf16.safetensors"
-        lora_repo = "dgrauet/ltx-2.5-mlx"
+        lora_repo = model_repo or "notapalindrome/ltx25-mlx"
         pack_lora = Path(model_path) / lora_name
-        if not pack_lora.is_file():
-            os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
-            from huggingface_hub import hf_hub_download
+        if pack_lora.is_file():
+            log(f"Dev LoRA in pack: {pack_lora} ({pack_lora.stat().st_size} bytes)")
+        else:
             from huggingface_hub.errors import GatedRepoError
+            os.environ.setdefault("HF_HUB_DOWNLOAD_TIMEOUT", "600")
             lora_file = None
             last_err = None
-            log(f"Ensuring distilled LoRA {lora_name} from {lora_repo}...")
-            for attempt in range(1, 8):
+            # Prefer already-cached LoRA (notapalindrome pack or prior dgrauet download).
+            for try_repo in (lora_repo, "dgrauet/ltx-2.5-mlx"):
                 try:
-                    lora_file = hf_hub_download(repo_id=lora_repo, filename=lora_name)
-                    last_err = None
+                    lora_file = hf_hub_download(
+                        repo_id=try_repo, filename=lora_name, local_files_only=True
+                    )
+                    log(
+                        f"Dev LoRA already cached from {try_repo} — skipping re-download: "
+                        f"{lora_file}"
+                    )
                     break
-                except GatedRepoError as e:
-                    last_err = e
-                    log(f"LoRA gated on {lora_repo}: {e}")
-                    raise RuntimeError(
-                        "LTX25_DEV_LORA_GATED: LTX-2.5 Dev needs the distilled LoRA "
-                        f"from {lora_repo} (~8.3GB). Accept access on that page "
-                        "(same account as `hf auth login`), then run Generate again:\n"
-                        f"https://huggingface.co/{lora_repo}"
-                    ) from e
-                except Exception as e:
-                    last_err = e
-                    log(f"LoRA download retry {attempt}: {type(e).__name__}: {e}")
-                    time.sleep(min(60, 2 ** attempt))
+                except LocalEntryNotFoundError:
+                    continue
+            if not lora_file:
+                log(f"Ensuring distilled LoRA {lora_name} from {lora_repo}...")
+                for attempt in range(1, 8):
+                    try:
+                        lora_file = hf_hub_download(repo_id=lora_repo, filename=lora_name)
+                        last_err = None
+                        break
+                    except GatedRepoError as e:
+                        last_err = e
+                        log(f"LoRA gated on {lora_repo}: {e}")
+                        raise RuntimeError(
+                            "LTX25_DEV_LORA_GATED: LTX-2.5 Dev needs the distilled LoRA "
+                            f"from {lora_repo} (~8.3GB). Accept access on that page "
+                            "(same account as `hf auth login`), then run Generate again:\n"
+                            f"https://huggingface.co/{lora_repo}"
+                        ) from e
+                    except Exception as e:
+                        last_err = e
+                        log(f"LoRA download retry {attempt}: {type(e).__name__}: {e}")
+                        time.sleep(min(60, 2 ** attempt))
             if not lora_file:
                 raise RuntimeError(
                     f"Two-stage Dev needs {lora_name} from {lora_repo} (~8.3GB). "

@@ -73,16 +73,17 @@ LTX Video Generator is a native macOS SwiftUI application that dispatches genera
 | Text encoder | External Gemma 3 (`--gemma`; default 12B 4-bit on ≤16GB Macs) |
 | Notes | Per-layer 2–8 bit quant via the generate adapter. Vendor claims ~14GB unified memory; not verified here. Default catalog pick for new installs on ≤16GB. |
 
-### mlx-community/ltx-2.5-mlx (LTX-2.5 Distilled)
+### notapalindrome/ltx25-mlx (LTX-2.5 Distilled / Dev)
 
 | Property | Value |
 |:---------|:------|
-| Backend | `ltx2Mlx` (`ltx-2-mlx generate --distilled`) |
-| Download size | ~100GB pack (Gemma 4 bundled) |
-| Q8 DiT overlay | `mlx-community/ltx-2.5-mlx-ditq8` `transformer-distilled.safetensors` swapped into a shadow pack dir (`ltx25_distilled_ditq8`). dgrauet 0.15.2 has no `--dit`. |
-| Steps | Distilled: fixed 8, CFG=1. Dev (`ltx25_dev`): `--two-stage` + `transformer-dev` + official distilled LoRA fuse for stage 2; first Dev generate downloads `ltx-2.5-22b-distilled-lora-450-bf16` (~8.3GB) |
+| Backend | `ltx2Mlx` (`ltx-2-mlx generate --distilled` or `--two-stage`) |
+| Download size | ~110GB pack (Gemma 4 + Dev LoRA bundled) |
+| Q8 DiT overlay | `notapalindrome/ltx25-mlx-ditq8` `transformer-distilled.safetensors` swapped into a shadow pack dir (`ltx25_distilled_ditq8`). dgrauet 0.15.2 has no `--dit`. |
+| Steps | Distilled: fixed 8, CFG=1. Dev (`ltx25_dev`): `--two-stage` + `transformer-dev` + bundled distilled LoRA fuse for stage 2 |
 | Text encoder | Gemma-4-unified inside the pack (`gemma4-12b-ltx-v1/`; adapter maps mlx-lm keys for dgrauet 0.15.2) |
 | Install | Git (`dgrauet/ltx-2-mlx` @ v0.15.2) or `~/projects/ltx-2-mlx` + `uv run`. Not required for 2.3 users. |
+| Provenance | MLX conversion of Lightricks/LTX-2.5 (same layout as mlx-community/ltx-2.5-mlx) |
 
 ### MiniMax H3 (h3.c)
 
