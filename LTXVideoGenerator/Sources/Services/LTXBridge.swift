@@ -1167,7 +1167,7 @@ try:
                         raise RuntimeError(
                             "LTX25_DEV_LORA_GATED: LTX-2.5 Dev needs the distilled LoRA "
                             f"from {lora_repo} (~8.3GB). Accept access on that page "
-                            "(same account as `hf auth login`), then run Generate again:\n"
+                            "(same account as `hf auth login`), then run Generate again:\\n"
                             f"https://huggingface.co/{lora_repo}"
                         ) from e
                     except Exception as e:
