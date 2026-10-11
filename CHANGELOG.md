@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- The left sidebar accepts clicks again on macOS 27. `NavigationSplitView` was drawing that column above the detail while the detail received the hits; the column is now a normal side-by-side stack.
+
 ## [2.3.86] - 2026-10-11
 
 ### Fixed

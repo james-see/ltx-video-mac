@@ -33,10 +33,14 @@ struct ContentView: View {
     }
     
     var body: some View {
-        NavigationSplitView {
+        // NavigationSplitView's sidebar column draws on macOS 27 but does not
+        // receive clicks (the detail hosting view sits above it in hit testing).
+        // This column is a custom stack, not a navigation list.
+        HStack(spacing: 0) {
             sidebarContent
-        } detail: {
+            Divider()
             detailContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         // Issue #52: relax the hard minimum so the window can shrink on small
         // displays (e.g. 13" MacBook Air with a non-default text size). Inner
@@ -45,8 +49,7 @@ struct ContentView: View {
             minWidth: 900,
             idealWidth: 1280,
             minHeight: 480,
-            idealHeight: 800,
-            maxHeight: .infinity
+            idealHeight: 800
         )
         .alert("Error", isPresented: $showError, presenting: generationService.error) { _ in
             Button("OK", role: .cancel) {
@@ -78,7 +81,9 @@ struct ContentView: View {
             }
         }
         .frame(width: 320)
+        .frame(maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .contentShape(Rectangle())
     }
     
     private var tabSelector: some View {
@@ -125,6 +130,7 @@ struct SidebarButton: View {
             buttonContent
         }
         .buttonStyle(.plain)
+        .contentShape(Rectangle())
         .foregroundStyle(isSelected ? .primary : .secondary)
     }
     
