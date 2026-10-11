@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## [2.3.85] - 2026-10-11
+
+### Fixed
+- Fix `SyntaxError: unterminated string literal` that crashed every LTX-2.5 (`ltx2Mlx`) generation at Python parse time. A `\n` inside the embedded gated-LoRA error message was interpreted by Swift as a real newline, splitting the Python string across two lines; it is now escaped so Python receives a valid newline escape. Thanks @shailendrablankbox ([#88](https://github.com/james-see/ltx-video-mac/issues/88), [#89](https://github.com/james-see/ltx-video-mac/pull/89)).
+
 ## [2.3.84] - 2026-09-08
 
 ### Changed
