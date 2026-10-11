@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- Launch no longer crashes on macOS 27 when the main window was last saved on a display that is now unplugged. Those autosaved frames are moved onto the current display before the window is created.
+
 ## [2.3.85] - 2026-10-11
 
 ### Fixed

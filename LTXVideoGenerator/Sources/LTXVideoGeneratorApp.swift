@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -6,6 +7,7 @@ struct LTXVideoGeneratorApp: App {
     init() {
         // Don't configure Python here - defer until after subprocess validation
         // This prevents crashes from PythonKit trying to load invalid Python
+        RestoredWindowFrameSanitizer.moveFramesOntoAttachedDisplays()
     }
     
     var body: some Scene {
@@ -173,5 +175,68 @@ struct RootView: View {
 struct SettingsRootView: View {
     var body: some View {
         PreferencesView()
+    }
+}
+
+/// macOS 27 traps (`NSApplication._crashOnException`) if a restored window is
+/// placed on a display that is no longer attached. AppKit raises from
+/// `_postWindowNeedsUpdateConstraints` while the SwiftUI hosting view is still
+/// inside its first constraint pass. Move those autosaved frames onto the
+/// current display before the window is created. Deleting the key instead
+/// also crashes: the saved split-view columns then get applied to a window
+/// with no frame.
+enum RestoredWindowFrameSanitizer {
+    static func moveFramesOntoAttachedDisplays() {
+        guard let bundleID = Bundle.main.bundleIdentifier,
+              let domain = UserDefaults.standard.persistentDomain(forName: bundleID),
+              let target = NSScreen.main ?? NSScreen.screens.first else { return }
+        let screens = NSScreen.screens.map(\.frame)
+        guard !screens.isEmpty else { return }
+
+        let defaults = UserDefaults.standard
+        for (key, value) in domain {
+            guard key.hasPrefix("NSWindow Frame "),
+                  let string = value as? String,
+                  let parts = frameParts(string) else { continue }
+            let window = CGRect(x: parts[0], y: parts[1], width: parts[2], height: parts[3])
+            let screen = CGRect(x: parts[4], y: parts[5], width: parts[6], height: parts[7])
+            let screenAttached = screens.contains { $0.intersects(screen) }
+            let windowVisible = screens.contains { $0.intersects(window) }
+            if screenAttached && windowVisible { continue }
+            defaults.set(frameString(relocated(window, onto: target), on: target), forKey: key)
+        }
+    }
+
+    /// Keep the saved size, clamped to the visible frame, and center it.
+    private static func relocated(_ window: CGRect, onto screen: NSScreen) -> CGRect {
+        let visible = screen.visibleFrame
+        let width = min(max(window.width, 0), visible.width)
+        let height = min(max(window.height, 0), visible.height)
+        let size = CGSize(
+            width: width > 1 ? width : min(1280, visible.width),
+            height: height > 1 ? height : min(800, visible.height)
+        )
+        return CGRect(
+            x: visible.midX - size.width / 2,
+            y: visible.midY - size.height / 2,
+            width: size.width,
+            height: size.height
+        )
+    }
+
+    /// `"x y width height screenX screenY screenWidth screenHeight"`
+    private static func frameParts(_ value: String) -> [CGFloat]? {
+        let parts = value.split(separator: " ").compactMap { Double($0) }.map { CGFloat($0) }
+        guard parts.count >= 8 else { return nil }
+        return parts
+    }
+
+    private static func frameString(_ window: CGRect, on screen: NSScreen) -> String {
+        let screenFrame = screen.frame
+        let nums = [
+            window.origin.x, window.origin.y, window.width, window.height,
+            screenFrame.origin.x, screenFrame.origin.y, screenFrame.width, screenFrame.height,
+        ]
+        return nums.map { String(format: "%.0f", $0) }.joined(separator: " ") + " "
     }
 }
