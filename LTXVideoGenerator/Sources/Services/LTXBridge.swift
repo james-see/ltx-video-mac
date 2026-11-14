@@ -975,12 +975,33 @@ except Exception as e:
                 .replacingOccurrences(of: "\"", with: "\\\"")
         }
         var imageSpecs: [String] = []
+        // With auto-duration the frame count is unknown app-side, so end
+        // anchors use the CLI's "last" token instead of a pixel index.
+        // Interior keyframes need a known count; fall back to -f if any exist.
+        let hasInteriorKeyframes = params.keyframes.contains {
+            !$0.imagePath.isEmpty && $0.position > 0.001 && $0.position < 0.999
+        }
+        let autoDurationActive = params.autoDuration
+            && selectedModel.supportsAutoDuration
+            && !hasInteriorKeyframes
         if let primary = request.sourceImagePath, !primary.isEmpty {
-            let idx = request.parameters.imageFramePosition == "last" ? lastPixelIdx : 0
+            let idx: String
+            if request.parameters.imageFramePosition == "last" {
+                idx = autoDurationActive ? "last" : String(lastPixelIdx)
+            } else {
+                idx = "0"
+            }
             imageSpecs.append("\(pyEscape(primary))|\(idx)|\(params.imageStrength)")
         }
         for kf in params.keyframes where !kf.imagePath.isEmpty {
-            let idx = pixelIndex(forFraction: kf.position)
+            let idx: String
+            if autoDurationActive && kf.position >= 0.999 {
+                idx = "last"
+            } else if autoDurationActive && kf.position <= 0.001 {
+                idx = "0"
+            } else {
+                idx = String(pixelIndex(forFraction: kf.position))
+            }
             imageSpecs.append("\(pyEscape(kf.imagePath))|\(idx)|\(kf.strength)")
         }
         let imagesPyList = "[" + imageSpecs.map { "\"\($0)\"" }.joined(separator: ", ") + "]"
@@ -999,6 +1020,21 @@ except Exception as e:
             tilingArgs = "cmd.extend(['--tile-frames', '2'])"
         default:
             tilingArgs = "pass"
+        }
+
+        // Auto-duration: omit -f so DurationHead predicts the frame count
+        // from the prompt (an explicit --frames would win and warn upstream).
+        let framesArg: String
+        if autoDurationActive {
+            let lo = Int(params.autoDurationMinSeconds.rounded(.up))
+            let hi = max(lo, Int(params.autoDurationMaxSeconds.rounded(.down)))
+            framesArg = #""--auto-duration", "\#(lo):\#(hi)",""#
+            progressHandler(
+                0.1,
+                "Auto duration: DurationHead will pick the length (bounds \(lo)–\(hi)s)..."
+            )
+        } else {
+            framesArg = #""-f", str(\#(params.numFrames)),""#
         }
 
         let script = """
@@ -1199,7 +1235,7 @@ try:
         "--model", model_path,
         "-H", str(\(genHeight)),
         "-W", str(\(genWidth)),
-        "-f", str(\(params.numFrames)),
+        \(framesArg)
         "--frame-rate", str(\(params.fps)),
         "-s", str(\(seed)),
         "-o", output_path,

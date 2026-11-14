@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+- **Auto duration for LTX-2.5 models** (#85): DurationHead predicts the clip length from the prompt instead of the fixed Frames slider. New "Auto duration" toggle in Parameters with 1–60s clamp bounds; the backend passes `--auto-duration MIN:MAX` and omits `-f`. End-anchored keyframes use the CLI's `last` token so first/last conditioning keeps working; keyframes pinned between the ends disable the toggle (they need a known frame count). Requires the pinned `ltx-2-mlx` 0.16+ (auto-installed/upgraded).
+
 ### Changed
 - LTX-2.5/12GB backend now pins `ltx-2-mlx` **v0.18.0** (was v0.15.2). Stale installs are auto-upgraded at generation time (manual envs get an upgrade hint). New upstream perf: opt-in float16 compute, block-sparse distilled stage-2 attention, faster DFR tiling.
 

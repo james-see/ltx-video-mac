@@ -13,6 +13,14 @@ struct ParametersView: View {
     private var selectedModel: LTXModel {
         LTXModelCatalog.resolvedModel(id: selectedModelID)
     }
+
+    /// Keyframes pinned between the first and last frame need a known frame
+    /// count, so auto-duration (DurationHead) can't run alongside them.
+    private var hasInteriorKeyframes: Bool {
+        parameters.keyframes.contains {
+            !$0.imagePath.isEmpty && $0.position > 0.001 && $0.position < 0.999
+        }
+    }
     
     let vramTimer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
@@ -258,6 +266,62 @@ struct ParametersView: View {
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
+                    } else if selectedModel.supportsAutoDuration {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle(isOn: $parameters.autoDuration) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label("Auto duration", systemImage: "wand.and.stars")
+                                        .font(.subheadline)
+                                    Text("DurationHead predicts the clip length from the prompt. Needs ltx-2-mlx 0.16+.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
+                            .disabled(hasInteriorKeyframes)
+
+                            if parameters.autoDuration {
+                                HStack(spacing: 16) {
+                                    Stepper(
+                                        "Min \(Int(parameters.autoDurationMinSeconds))s",
+                                        value: Binding(
+                                            get: { parameters.autoDurationMinSeconds },
+                                            set: { parameters.autoDurationMinSeconds = min(Double($0), parameters.autoDurationMaxSeconds) }
+                                        ),
+                                        in: 1...15
+                                    )
+                                    Stepper(
+                                        "Max \(Int(parameters.autoDurationMaxSeconds))s",
+                                        value: Binding(
+                                            get: { parameters.autoDurationMaxSeconds },
+                                            set: { parameters.autoDurationMaxSeconds = max(Double($0), parameters.autoDurationMinSeconds) }
+                                        ),
+                                        in: 2...60
+                                    )
+                                }
+                                .font(.caption)
+                                Text("Predicted length is clamped to these bounds, then snapped to the 8k+1 frame grid.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ParameterSlider(
+                                    title: "Frames",
+                                    value: Binding(
+                                        get: { Double(parameters.numFrames) },
+                                        set: { parameters.numFrames = Int($0) }
+                                    ),
+                                    range: 25...1000,
+                                    step: 25,
+                                    icon: "film.stack"
+                                )
+                            }
+
+                            if hasInteriorKeyframes {
+                                Text("Auto duration is unavailable while a keyframe sits between the first and last frame — it needs a known frame count.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                            }
+                        }
                     } else {
                         ParameterSlider(
                             title: "Frames",
@@ -318,7 +382,11 @@ struct ParametersView: View {
                     // Video length estimate
                     HStack {
                         Image(systemName: "film")
-                        Text("Video Length: \(parameters.videoLength)")
+                        if selectedModel.supportsAutoDuration && parameters.autoDuration && !hasInteriorKeyframes {
+                            Text("Video Length: auto (DurationHead, \(Int(parameters.autoDurationMinSeconds))–\(Int(parameters.autoDurationMaxSeconds))s)")
+                        } else {
+                            Text("Video Length: \(parameters.videoLength)")
+                        }
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
