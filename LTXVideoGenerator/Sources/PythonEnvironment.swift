@@ -86,9 +86,9 @@ private let mlxVideoMinVersion = "0.1.37"
 private let mlxLmMinVersion = "0.31.2"
 
 enum Ltx2MlxInstall {
-    static let tag = "v0.15.2"
-    static let core = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-core-mlx"
-    static let pipelines = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-pipelines-mlx"
+    static let tag = "v0.18.0"
+    static let core = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.18.0#subdirectory=packages/ltx-core-mlx"
+    static let pipelines = "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.18.0#subdirectory=packages/ltx-pipelines-mlx"
     static let packages = [core, pipelines, "mlx-lm>=\(mlxLmMinVersion)"]
     static let hint = "pip install \"\(core)\" \"\(pipelines)\" \"mlx-lm>=\(mlxLmMinVersion)\""
 }
@@ -496,6 +496,25 @@ class PythonEnvironment {
 
     func ensureLtx2Mlx(executablePath: String, automaticInstall: Bool) async -> (success: Bool, message: String) {
         if hasLtx2Mlx(executablePath: executablePath) {
+            let ltxVerScript = "import importlib.metadata as m\ntry:\n print(m.version('ltx-pipelines-mlx'))\nexcept Exception:\n print('')"
+            let pinnedVersion = Ltx2MlxInstall.tag.hasPrefix("v") ? String(Ltx2MlxInstall.tag.dropFirst()) : Ltx2MlxInstall.tag
+            if let ver = runPythonSync(executable: executablePath, script: ltxVerScript)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !ver.isEmpty,
+               compareVersions(ver, lessThan: pinnedVersion) {
+                if automaticInstall {
+                    let upgrade = await installPackages(
+                        pythonExecutable: executablePath,
+                        packages: Ltx2MlxInstall.packages,
+                        upgrade: true
+                    )
+                    if !upgrade.success {
+                        return (false, "ltx-2-mlx \(ver) is older than the pinned \(Ltx2MlxInstall.tag). Upgrade failed. \(upgrade.message) Manual: \(Ltx2MlxInstall.hint)")
+                    }
+                } else {
+                    return (false, "ltx-2-mlx \(ver) is older than the pinned \(Ltx2MlxInstall.tag). Run: \(Ltx2MlxInstall.hint)")
+                }
+            }
             let verScript = "import importlib.metadata as m\ntry:\n print(m.version('mlx-lm'))\nexcept Exception:\n print('')"
             if let ver = runPythonSync(executable: executablePath, script: verScript)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),

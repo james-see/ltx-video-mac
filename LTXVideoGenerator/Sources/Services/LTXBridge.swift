@@ -1227,7 +1227,8 @@ try:
         cmd.extend(["--image", path, idx_s, strength_s])
         log(f"I2V image: {path} @ pixel {idx_s} strength={strength_s}")
     if \(request.disableAudio ? "True" : "False"):
-        log("Generate Audio off is ignored on ltx-2-mlx 0.15.2 (no --no-audio; see dgrauet/ltx-2-mlx#126)")
+        cmd.append("--no-audio")
+        log("Generate Audio off: --no-audio (skip audio VAE decode + mux; needs ltx-2-mlx 0.16+)")
     if \(enableEnhance ? "True" : "False"):
         cmd.append("--enhance-prompt")
     if \(useLowRam ? "True" : "False"):

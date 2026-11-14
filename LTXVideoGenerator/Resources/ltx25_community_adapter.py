@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """ltx-2-mlx generate wrapper for community LTX packs.
 
-dgrauet 0.15.2 only treats a pack as Gemma 4 when text_encoder.safetensors
+dgrauet ltx-2-mlx only treats a pack as Gemma 4 when text_encoder.safetensors
 sits at the snapshot root. notapalindrome/ltx25-mlx (and mlx-community/ltx-2.5-mlx)
 ship the tower as mlx-lm layout under gemma4-12b-ltx-v1/.
 
 baa-ai/LTX-2.3-22B-RAM-12GB-MLX is mixed-precision (2–8 bit). Stock
 apply_quantization uses one bit width; we apply per-layer nn.quantize.
 
-Patches DurationHead load for community packs that already ship split q/k/v
-(0.15.2 ``load_duration_head`` only expects fused torch ``in_proj``).
+DurationHead loading for split q/k/v community packs is handled upstream
+since 0.16 (dgrauet/ltx-2-mlx#125); no patch needed on 0.18+.
 """
 
 from __future__ import annotations
@@ -20,6 +20,45 @@ from pathlib import Path
 
 _COMMUNITY_GEMMA = "gemma4-12b-ltx-v1"
 _COMMUNITY_PREFIX = "model.language_model."
+
+
+def _installed_pipelines_version() -> tuple[int, ...]:
+    try:
+        import importlib.metadata as m
+
+        return tuple(
+            int(p) for p in m.version("ltx-pipelines-mlx").split(".") if p.isdigit()
+        )
+    except Exception:
+        return ()
+
+
+def drop_unsupported_args(argv: list[str]) -> list[str]:
+    """Strip flags the installed ltx-2-mlx predates, with a warning.
+
+    The app pins v0.18.0, but a local-repo checkout or a venv the app did
+    not provision can still be older. --no-audio needs 0.16+.
+    """
+    if len(_installed_pipelines_version()) >= 3 and _installed_pipelines_version() >= (
+        0,
+        16,
+        0,
+    ):
+        return argv
+    out: list[str] = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--no-audio":
+            print(
+                "--no-audio needs ltx-2-mlx 0.16+; audio will be generated (ignored)",
+                file=sys.stderr,
+                flush=True,
+            )
+            i += 1
+            continue
+        out.append(argv[i])
+        i += 1
+    return out
 
 
 def community_gemma_dir(model_dir: str | Path) -> Path | None:
@@ -84,7 +123,6 @@ def apply_patches() -> None:
     from ltx_core_mlx.text_encoders.gemma.gemma4 import Gemma4TextModel
     from ltx_core_mlx.utils import weights as weights_mod
     from ltx_pipelines_mlx.utils import blocks
-    from ltx_pipelines_mlx.utils.blocks import DurationPredictor
     from ltx_pipelines_mlx.utils import _orchestration as orch
     import ltx_pipelines_mlx._base as ltx_base
 
@@ -159,106 +197,12 @@ def apply_patches() -> None:
     weights_mod.load_split_safetensors = load_split_safetensors
     blocks.load_split_safetensors = load_split_safetensors
 
-    # mlx-community/ltx-2.5-mlx already stores split q/k/v; 0.15.2 pops fused
-    # in_proj_* and KeyErrors. Accept either layout.
-    from ltx_core_mlx.duration_head import duration_head as duration_head_mod
-
-    _orig_load_duration = duration_head_mod.load_duration_head
-
-    def load_duration_head(path):
-        path = Path(path)
-        if not path.exists():
-            raise FileNotFoundError("duration head weights not found at %s" % path)
-
-        import mlx.core as mx
-        from ltx_core_mlx.duration_head.duration_head import DurationHead
-        from ltx_core_mlx.utils.weights import load_split_safetensors
-
-        prefix = duration_head_mod._PACK_PREFIX
-        raw = load_split_safetensors(path, prefix=prefix)
-
-        hidden_dim = raw["video_modality_emb"].shape[0]
-        video_dim = raw["video_input_proj.weight"].shape[1]
-        audio_dim = raw["audio_input_proj.weight"].shape[1]
-        mlp_hidden_dim = raw["mlp_hidden.weight"].shape[0]
-        num_queries = raw["attention_pooler.query_tokens"].shape[0]
-        num_heads = 4
-
-        fused_w = "attention_pooler.cross_attn.in_proj_weight"
-        fused_b = "attention_pooler.cross_attn.in_proj_bias"
-        if fused_w in raw and fused_b in raw:
-            in_proj_weight = raw.pop(fused_w)
-            in_proj_bias = raw.pop(fused_b)
-            q_w, k_w, v_w = mx.split(in_proj_weight, 3, axis=0)
-            q_b, k_b, v_b = mx.split(in_proj_bias, 3, axis=0)
-            raw["attention_pooler.cross_attn.q_proj.weight"] = q_w
-            raw["attention_pooler.cross_attn.q_proj.bias"] = q_b
-            raw["attention_pooler.cross_attn.k_proj.weight"] = k_w
-            raw["attention_pooler.cross_attn.k_proj.bias"] = k_b
-            raw["attention_pooler.cross_attn.v_proj.weight"] = v_w
-            raw["attention_pooler.cross_attn.v_proj.bias"] = v_b
-            print(
-                "DurationHead: fused in_proj -> q/k/v (%s)" % path.name,
-                file=sys.stderr,
-                flush=True,
-            )
-        elif all(
-            k in raw
-            for k in (
-                "attention_pooler.cross_attn.q_proj.weight",
-                "attention_pooler.cross_attn.k_proj.weight",
-                "attention_pooler.cross_attn.v_proj.weight",
-            )
-        ):
-            print(
-                "DurationHead: using pre-split q/k/v (%s)" % path.name,
-                file=sys.stderr,
-                flush=True,
-            )
-        else:
-            return _orig_load_duration(path)
-
-        model = DurationHead(
-            video_cross_attention_dim=video_dim,
-            audio_cross_attention_dim=audio_dim,
-            pooler_hidden_dim=hidden_dim,
-            num_queries=num_queries,
-            num_pooler_heads=num_heads,
-            mlp_hidden_dim=mlp_hidden_dim,
-        )
-        model.load_weights(list(raw.items()))
-        return model
-
-    duration_head_mod.load_duration_head = load_duration_head
-    import ltx_core_mlx.duration_head as duration_head_pkg
-
-    duration_head_pkg.load_duration_head = load_duration_head
-    # blocks imported load_duration_head by name; rebind so from_checkpoint sees it.
-    blocks.load_duration_head = load_duration_head
-
-    _orig_duration = DurationPredictor.from_checkpoint
-
-    def _safe_duration(model_dir):
-        try:
-            return _orig_duration(model_dir)
-        except Exception as e:
-            print(
-                "DurationHead skipped (%s: %s); using --frames" % (type(e).__name__, e),
-                file=sys.stderr,
-                flush=True,
-            )
-            return None
-
-    DurationPredictor.from_checkpoint = classmethod(
-        lambda cls, model_dir: _safe_duration(model_dir)
-    )
-
 
 def main() -> int:
     apply_patches()
+    sys.argv = ["ltx-2-mlx"] + drop_unsupported_args(sys.argv[1:])
     from ltx_pipelines_mlx.cli import main as cli_main
 
-    sys.argv = ["ltx-2-mlx"] + sys.argv[1:]
     return cli_main() or 0
 
 
