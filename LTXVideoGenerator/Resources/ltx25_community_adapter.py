@@ -37,20 +37,30 @@ def drop_unsupported_args(argv: list[str]) -> list[str]:
     """Strip flags the installed ltx-2-mlx predates, with a warning.
 
     The app pins v0.18.0, but a local-repo checkout or a venv the app did
-    not provision can still be older. --no-audio needs 0.16+, --segment
-    (Prompt Relay) needs 0.17+.
+    not provision can still be older. Flags map to (min version, value
+    tokens to consume): 0 = none, 1 = exactly one, -1 = TEXT plus an
+    optional trailing positive int (--segment TEXT [LEN]).
     """
     ver = _installed_pipelines_version()
-    unsupported: dict[str, str] = {}
+    flag_rules: dict[str, tuple[tuple[int, int, int], int, str]] = {
+        "--no-audio": ((0, 16, 0), 0, "audio will be generated (ignored)"),
+        "--dfr": ((0, 16, 3), 0, "DFR ignored; running the model's default flow"),
+        "--num-generated-keyframes": (
+            (0, 16, 3),
+            1,
+            "generated keyframe slots ignored",
+        ),
+        "--detailing-lora": ((0, 16, 3), 1, "detailing LoRA override ignored"),
+        "--segment": ((0, 17, 0), -1, "segments ignored"),
+    }
+    unsupported: dict[str, tuple[int, str]] = {}
     if len(ver) >= 3:
-        if ver < (0, 16, 0):
-            unsupported["--no-audio"] = (
-                "--no-audio needs ltx-2-mlx 0.16+; audio will be generated (ignored)"
-            )
-        if ver < (0, 17, 0):
-            unsupported["--segment"] = (
-                "--segment (Prompt Relay) needs ltx-2-mlx 0.17+; segments ignored"
-            )
+        for flag, (min_ver, tokens, note) in flag_rules.items():
+            if ver < min_ver:
+                unsupported[flag] = (
+                    tokens,
+                    f"{flag} needs ltx-2-mlx {'.'.join(map(str, min_ver))}+; {note}",
+                )
     if not unsupported:
         return argv
     out: list[str] = []
@@ -58,14 +68,16 @@ def drop_unsupported_args(argv: list[str]) -> list[str]:
     while i < len(argv):
         flag = argv[i]
         if flag in unsupported:
-            print(unsupported[flag], file=sys.stderr, flush=True)
+            tokens, message = unsupported[flag]
+            print(message, file=sys.stderr, flush=True)
             i += 1
-            # Consume the flag's value tokens: TEXT for --segment (plus an
-            # optional positive-int LEN_FRAMES). --no-audio takes none.
-            if i < len(argv) and not argv[i].startswith("-"):
-                i += 1
-                if i < len(argv) and argv[i].isdigit():
+            for _ in range(max(tokens, 0)):
+                if i < len(argv) and not argv[i].startswith("-"):
                     i += 1
+            if tokens < 0 and i < len(argv) and not argv[i].startswith("-"):
+                i += 1  # segment TEXT
+                if i < len(argv) and argv[i].isdigit():
+                    i += 1  # optional LEN_FRAMES
             continue
         out.append(flag)
         i += 1

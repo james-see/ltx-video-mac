@@ -390,6 +390,36 @@ struct ParametersView: View {
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                    // DFR + generated keyframe slots (LTX-2.5 packs only)
+                    if selectedModel.supportsAutoDuration {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle(isOn: $parameters.dfrMode) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label("DFR (experimental)", systemImage: "square.stack.3d.up")
+                                        .font(.subheadline)
+                                    Text("Diffusion Fidelity Rendering: half-res distilled stage with keyframe slots on a segment-aligned canvas, then full-res detailing via the official IC-LoRA. Steps/CFG follow upstream DFR defaults. First run downloads a gated Lightricks LoRA — accept its licence on the HF model page once.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
+
+                            if !parameters.dfrMode {
+                                Stepper(
+                                    "Generated keyframes: \(parameters.numGeneratedKeyframes)",
+                                    value: $parameters.numGeneratedKeyframes,
+                                    in: 0...8
+                                )
+                                .font(.caption)
+                                if parameters.numGeneratedKeyframes > 0 {
+                                    Text("Adds \(parameters.numGeneratedKeyframes) generated keyframe slot(s) at evenly spaced interior positions. Each relaxes temporal compression but costs a full latent frame of tokens. Not combinable with DFR, which lays its own slots.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
                     
                     Divider()
                     
