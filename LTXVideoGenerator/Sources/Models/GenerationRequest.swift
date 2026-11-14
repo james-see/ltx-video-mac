@@ -570,6 +570,15 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     /// Prompt Relay segments, in timeline order (ltx-2-mlx `--segment`).
     /// The main prompt still applies; segments add local, gated beats.
     var segments: [PromptSegment] = []
+    /// DFR (Diffusion Fidelity Rendering) on LTX-2.5 packs: half-res
+    /// distilled stage with keyframe slots, then full-res detailing via the
+    /// official gated IC-LoRA. Replaces the distilled/dev path (ltx-2-mlx
+    /// 0.16.3+; steps/CFG come from the upstream DFR defaults).
+    var dfrMode: Bool = false
+    /// Extra generated keyframes at evenly spaced interior positions
+    /// (ltx-2-mlx `--num-generated-keyframes`, stage 1, LTX-2.5 packs).
+    /// Not combinable with DFR — DFR lays its own keyframe slots.
+    var numGeneratedKeyframes: Int = 0
 
     // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
@@ -667,5 +676,7 @@ extension GenerationParameters {
         autoDurationMinSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMinSeconds) ?? 1.0
         autoDurationMaxSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMaxSeconds) ?? 10.0
         segments = try c.decodeIfPresent([PromptSegment].self, forKey: .segments) ?? []
+        dfrMode = try c.decodeIfPresent(Bool.self, forKey: .dfrMode) ?? false
+        numGeneratedKeyframes = try c.decodeIfPresent(Int.self, forKey: .numGeneratedKeyframes) ?? 0
     }
 }

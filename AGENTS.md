@@ -57,7 +57,7 @@ App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_
 | `num_frames % 8 == 1`; W/H ÷32 | Defaults OK; app snaps W/H to **64** (stricter) |
 | Extra timeline keyframes | Yes — repeatable `--image PATH FRAME_IDX STRENGTH` (pixel idx; mlx-video uses latent `--keyframe`) |
 | Duration predictor (omit frames) | Yes — "Auto duration" toggle passes `--auto-duration MIN:MAX` and omits `-f`; upstream 0.16+ loads community DurationHead natively ([upstream #125](https://github.com/dgrauet/ltx-2-mlx/issues/125) fixed) |
-| Native multishot / DFR | DFR **not wired** (needs `--dfr` + gated detailing-LoRA licence handling). Prompt Relay **in UI** as repeatable `--segment TEXT [LEN]` (multishot-ish beats) |
+| Native multishot / DFR | Yes — "DFR" toggle passes `--dfr` (half-res + keyframe slots → full-res IC-LoRA detailing; gated `Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler` on first run) + "Generated keyframes" stepper → `--num-generated-keyframes`. Prompt Relay **in UI** as repeatable `--segment TEXT [LEN]` |
 | Disable audio | Yes — `--no-audio` forwarded for ltx-2-mlx 0.16+ ([upstream #126](https://github.com/dgrauet/ltx-2-mlx/issues/126) fixed) |
 
 Parity epic: https://github.com/james-see/ltx-video-mac/issues/85

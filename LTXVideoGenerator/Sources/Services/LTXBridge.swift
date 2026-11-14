@@ -1177,7 +1177,9 @@ try:
         raise RuntimeError(
             "Missing ltx25_community_adapter.py in the app bundle. Rebuild the app."
         )
-    two_stage = \(selectedModel.usesDevTwoStage ? "True" : "False")
+    two_stage = \(selectedModel.usesDevTwoStage && !(params.dfrMode && selectedModel.supportsAutoDuration) ? "True" : "False")
+    dfr_mode = \(params.dfrMode && selectedModel.supportsAutoDuration ? "True" : "False")
+    gen_keyframes = \(max(0, params.numGeneratedKeyframes))
     # Official two-stage fuses distilled LoRA into the *dev* DiT. notapalindrome
     # pack ships the LoRA in-repo; community/legacy caches may need a one-file pull.
     if two_stage:
@@ -1254,7 +1256,14 @@ try:
         "-s", str(\(seed)),
         "-o", output_path,
     ]
-    if two_stage:
+    if dfr_mode:
+        cmd.append("--dfr")
+        log(
+            "DFR mode: half-res distilled stage with keyframe slots, then full-res "
+            "detailing via the official IC-LoRA (first run downloads the gated "
+            "Lightricks repo; needs HF login + licence accepted once)"
+        )
+    elif two_stage:
         cmd.extend([
             "--two-stage",
             "--stage1-steps", str(\(params.numInferenceSteps)),
@@ -1268,6 +1277,9 @@ try:
         )
     else:
         cmd.append("--distilled")
+    if gen_keyframes > 0 and not dfr_mode:
+        cmd.extend(["--num-generated-keyframes", str(gen_keyframes)])
+        log(f"Generated keyframe slots: {gen_keyframes} (evenly spaced interior positions)")
     if gemma_repo:
         cmd.extend(["--gemma", gemma_repo])
         log(f"Gemma text encoder: {gemma_repo}")
@@ -1298,6 +1310,11 @@ try:
 
     log(f"Command: {' '.join(cmd)}")
     child_env = os.environ.copy()
+    if dfr_mode:
+        # hf-xet returns masked hashes for gated files and crashes the
+        # detailing-LoRA download ("Unable to parse string as hex hash
+        # value"). Plain HTTP downloads gated repos fine.
+        child_env["HF_HUB_DISABLE_XET"] = "1"
     process = subprocess.Popen(
         cmd,
         env=child_env,

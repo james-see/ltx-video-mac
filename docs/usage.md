@@ -46,6 +46,9 @@ Select a preset from the dropdown to quickly configure parameters:
 The LTX-2 Unified model uses a 2-stage generation pipeline with built-in audio. ltx-2-mlx distilled (LTX-2.5 Distilled / Q8 DiT and the 12GB 2.3 pack) is a single 8-step pass. `ltx25_dev` is half-res dev+CFG then distilled-LoRA refine. MiniMax H3 runs the native `h3` binary (24 fps, frames snap to 5+17n).
 
 {: .tip }
+**DFR (LTX-2.5 packs, experimental):** the *DFR* toggle in Parameters runs upstream's Diffusion Fidelity Rendering — a half-res distilled stage with keyframe slots on a segment-aligned canvas, then a full-res detailing pass guided by the official IC-LoRA. Steps/CFG follow upstream defaults. The first DFR run downloads a gated Lightricks LoRA: log in to Hugging Face and accept the licence on the model page once. Composes with Prompt Relay segments (at the default upscaling count).
+
+{: .tip }
 **Prompt Relay (ltx-2-mlx models):** under "Prompt Relay" in the prompt panel, add timeline-ordered local prompts — each is gated to its slice of the clip (multishot-style beats without DFR). Pin a segment to a length in latent frames or leave it auto-distributed. The main prompt still applies; segment 1 should carry the opening beats so the start doesn't drift.
 
 {: .tip }
