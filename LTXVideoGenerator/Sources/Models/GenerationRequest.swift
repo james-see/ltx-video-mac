@@ -534,6 +534,15 @@ struct Keyframe: Codable, Equatable, Hashable, Identifiable {
     var strength: Double = 1.0
 }
 
+/// One Prompt Relay beat: a local prompt gated to a slice of the timeline
+/// (ltx-2-mlx `--segment TEXT [LEN_FRAMES]`). `lengthFrames` is in latent
+/// frames; nil lets the CLI auto-distribute the timeline across segments.
+struct PromptSegment: Codable, Equatable, Hashable, Identifiable {
+    var id: UUID = UUID()
+    var text: String = ""
+    var lengthFrames: Int?
+}
+
 struct GenerationParameters: Codable, Equatable, Hashable {
     var numInferenceSteps: Int
     var guidanceScale: Double
@@ -558,6 +567,9 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     /// clamped to this range before snapping to the 8k+1 frame grid.
     var autoDurationMinSeconds: Double = 1.0
     var autoDurationMaxSeconds: Double = 10.0
+    /// Prompt Relay segments, in timeline order (ltx-2-mlx `--segment`).
+    /// The main prompt still applies; segments add local, gated beats.
+    var segments: [PromptSegment] = []
 
     // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
@@ -654,5 +666,6 @@ extension GenerationParameters {
         autoDuration = try c.decodeIfPresent(Bool.self, forKey: .autoDuration) ?? false
         autoDurationMinSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMinSeconds) ?? 1.0
         autoDurationMaxSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMaxSeconds) ?? 10.0
+        segments = try c.decodeIfPresent([PromptSegment].self, forKey: .segments) ?? []
     }
 }

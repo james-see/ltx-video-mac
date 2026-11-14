@@ -12,6 +12,7 @@ struct PromptInputView: View {
     @Binding var parameters: GenerationParameters
     
     @State private var showNegativePrompt = false
+    @State private var showPromptRelay = false
     @State private var showVoiceover = false
     @State private var showMusic = false
     @State private var showImageToVideo = false
@@ -448,6 +449,144 @@ struct PromptInputView: View {
                 }
             }
             
+            // Prompt Relay segments (ltx-2-mlx backend only)
+            if selectedModel.backend == .ltx2Mlx {
+                DisclosureGroup(isExpanded: $showPromptRelay) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Label("Prompt Relay Segments", systemImage: "text.badge.plus")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button {
+                                parameters.segments.append(PromptSegment())
+                            } label: {
+                                Label("Add", systemImage: "plus")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+
+                        if parameters.segments.isEmpty {
+                            Text("Split the timeline into prompted beats: each segment is a local prompt gated to its slice (multishot-style prompting without DFR). Order is timeline order; lengths are in latent frames or auto-distributed. Needs ltx-2-mlx 0.17+.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(parameters.segments.enumerated()), id: \.element.id) { index, segment in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("Segment \(index + 1)")
+                                            .font(.caption2.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Button {
+                                            if index > 0 {
+                                                parameters.segments.swapAt(index, index - 1)
+                                            }
+                                        } label: {
+                                            Image(systemName: "chevron.up")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index == 0)
+                                        Button {
+                                            if index < parameters.segments.count - 1 {
+                                                parameters.segments.swapAt(index, index + 1)
+                                            }
+                                        } label: {
+                                            Image(systemName: "chevron.down")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .disabled(index == parameters.segments.count - 1)
+                                        Button(role: .destructive) {
+                                            parameters.segments.removeAll { $0.id == segment.id }
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(.red)
+                                    }
+
+                                    TextField("e.g. The door creaks open onto a dim hallway", text: Binding(
+                                        get: { segment.text },
+                                        set: { newValue in
+                                            if let i = parameters.segments.firstIndex(where: { $0.id == segment.id }) {
+                                                parameters.segments[i].text = newValue
+                                            }
+                                        }
+                                    ), axis: .vertical)
+                                    .font(.caption)
+                                    .lineLimit(2...4)
+
+                                    HStack {
+                                        Text("Length")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                        if segment.lengthFrames == nil {
+                                            Button("Pin length") {
+                                                if let i = parameters.segments.firstIndex(where: { $0.id == segment.id }) {
+                                                    parameters.segments[i].lengthFrames = 4
+                                                }
+                                            }
+                                            .font(.caption2)
+                                            .buttonStyle(.link)
+                                            Text("(auto-distributed)")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        } else {
+                                            Stepper(
+                                                "\(segment.lengthFrames ?? 4) latent frames",
+                                                value: Binding(
+                                                    get: { Double(segment.lengthFrames ?? 4) },
+                                                    set: { newValue in
+                                                        if let i = parameters.segments.firstIndex(where: { $0.id == segment.id }) {
+                                                            parameters.segments[i].lengthFrames = Int(newValue)
+                                                        }
+                                                    }
+                                                ),
+                                                in: 1...64
+                                            )
+                                            .font(.caption2)
+                                            Button("Auto") {
+                                                if let i = parameters.segments.firstIndex(where: { $0.id == segment.id }) {
+                                                    parameters.segments[i].lengthFrames = nil
+                                                }
+                                            }
+                                            .font(.caption2)
+                                            .buttonStyle(.link)
+                                        }
+                                    }
+                                }
+                                .padding(8)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(Color(nsColor: .controlBackgroundColor))
+                                )
+                            }
+
+                            Text("The main prompt still applies across the whole clip; segments override their slice of the timeline. Keep the main prompt's opening beats in segment 1 so the start doesn't drift.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.top, 8)
+                } label: {
+                    HStack {
+                        Label("Prompt Relay", systemImage: "rectangle.split.2x1")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+
+                        if !parameters.segments.isEmpty {
+                            Text("\(parameters.segments.count)")
+                                .font(.caption2.weight(.semibold))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(.tint.opacity(0.2)))
+                        }
+                    }
+                }
+            }
+
             // Negative prompt toggle
             DisclosureGroup(isExpanded: $showNegativePrompt) {
                 TextEditor(text: $negativePrompt)

@@ -46,6 +46,9 @@ Select a preset from the dropdown to quickly configure parameters:
 The LTX-2 Unified model uses a 2-stage generation pipeline with built-in audio. ltx-2-mlx distilled (LTX-2.5 Distilled / Q8 DiT and the 12GB 2.3 pack) is a single 8-step pass. `ltx25_dev` is half-res dev+CFG then distilled-LoRA refine. MiniMax H3 runs the native `h3` binary (24 fps, frames snap to 5+17n).
 
 {: .tip }
+**Prompt Relay (ltx-2-mlx models):** under "Prompt Relay" in the prompt panel, add timeline-ordered local prompts — each is gated to its slice of the clip (multishot-style beats without DFR). Pin a segment to a length in latent frames or leave it auto-distributed. The main prompt still applies; segment 1 should carry the opening beats so the start doesn't drift.
+
+{: .tip }
 **Auto duration (LTX-2.5 Distilled / Dev / Q8 DiT):** flip on *Auto duration* in Parameters and DurationHead predicts the clip length from your prompt (clamped to the min/max seconds you set, snapped to the 8k+1 frame grid) — the Frames slider is ignored. First/last keyframes still work (end anchors follow the predicted length). Keyframes pinned between the ends need a fixed count, so the toggle disables while those exist. The 12GB 2.3 pack has no DurationHead and keeps the slider.
 
 ### MiniMax H3 variants
