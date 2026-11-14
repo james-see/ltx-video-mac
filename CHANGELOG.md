@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Changed
+- LTX-2.5/12GB backend now pins `ltx-2-mlx` **v0.18.0** (was v0.15.2). Stale installs are auto-upgraded at generation time (manual envs get an upgrade hint). New upstream perf: opt-in float16 compute, block-sparse distilled stage-2 attention, faster DFR tiling.
+
+### Fixed
+- **Generate Audio off now works on the ltx-2-mlx backend** — forwarded as `--no-audio` (needs 0.16+; older local installs ignore it with a warning instead of silently generating audio).
+- `ltx25_community_adapter.py` no longer patches DurationHead — upstream 0.16+ loads split q/k/v community packs natively. Community Gemma 4 layout and mixed-precision (2–8 bit) patches remain for `notapalindrome`/`mlx-community` packs and the 12GB model.
+
 ## [2.3.88] - 2026-11-13
 
 ### Fixed
