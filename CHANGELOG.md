@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- **Prompt Relay segments for ltx-2-mlx models** (#85): new "Prompt Relay" section in the prompt panel — timeline-ordered local prompts, each gated to its slice of the clip (multishot-style prompting without DFR). Optional per-segment length in latent frames (or auto-distributed); reorder up/down, remove, count badge. Forwarded as repeatable `--segment TEXT [LEN]`; older local ltx-2-mlx installs (<0.17) ignore them with a warning.
 - **Auto duration for LTX-2.5 models** (#85): DurationHead predicts the clip length from the prompt instead of the fixed Frames slider. New "Auto duration" toggle in Parameters with 1–60s clamp bounds; the backend passes `--auto-duration MIN:MAX` and omits `-f`. End-anchored keyframes use the CLI's `last` token so first/last conditioning keeps working; keyframes pinned between the ends disable the toggle (they need a known frame count). Requires the pinned `ltx-2-mlx` 0.16+ (auto-installed/upgraded).
 
 ### Changed

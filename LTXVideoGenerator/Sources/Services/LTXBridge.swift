@@ -1005,6 +1005,19 @@ except Exception as e:
             imageSpecs.append("\(pyEscape(kf.imagePath))|\(idx)|\(kf.strength)")
         }
         let imagesPyList = "[" + imageSpecs.map { "\"\($0)\"" }.joined(separator: ", ") + "]"
+        // Prompt Relay segments travel as JSON (text may contain quotes/newlines).
+        let segmentPayload: [[String: Any]] = params.segments
+            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .map { seg in
+                var entry: [String: Any] = ["text": seg.text]
+                if let length = seg.lengthFrames { entry["length"] = length }
+                return entry
+            }
+        let segmentsJSON = (try? JSONSerialization.data(withJSONObject: segmentPayload))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        if !segmentPayload.isEmpty {
+            progressHandler(0.1, "Prompt Relay: \(segmentPayload.count) timeline segment(s)...")
+        }
         let adapterPath = Bundle.main.bundlePath + "/Contents/Resources/ltx25_community_adapter.py"
 
         progressHandler(0.1, "Starting \(request.isImageToVideo ? "image-to-video" : "text-to-video") (\(selectedModel.displayName))...")
@@ -1061,6 +1074,7 @@ try:
     dit_repo = "\(ditRepo)"
     gemma_repo = "\(gemmaRepo)"
     image_specs = \(imagesPyList)
+    segment_specs = \(segmentsJSON)
     local_repo = os.path.expanduser("~/projects/ltx-2-mlx")
     use_local = \(useLocalLtx2 ? "True" : "False") and os.path.isdir(local_repo)
 
@@ -1262,6 +1276,16 @@ try:
         path, idx_s, strength_s = spec.split("|", 2)
         cmd.extend(["--image", path, idx_s, strength_s])
         log(f"I2V image: {path} @ pixel {idx_s} strength={strength_s}")
+    # Repeatable --segment TEXT [LEN_FRAMES] (Prompt Relay, timeline order).
+    for seg in segment_specs:
+        seg_args = ["--segment", seg["text"]]
+        if seg.get("length") is not None:
+            seg_args.append(str(seg["length"]))
+        cmd.extend(seg_args)
+        log(
+            f"Prompt Relay segment: {seg['text'][:70]}"
+            f" ({seg.get('length', 'auto')} latent frames)"
+        )
     if \(request.disableAudio ? "True" : "False"):
         cmd.append("--no-audio")
         log("Generate Audio off: --no-audio (skip audio VAE decode + mux; needs ltx-2-mlx 0.16+)")

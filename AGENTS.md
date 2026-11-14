@@ -27,7 +27,7 @@ If a PR changes the Python CLI (`--keyframe`, kwargs on `generate_video_with_aud
 
 ## LTX-2.5 reference
 
-Upstream: [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) (CUDA `ltx-pipelines` / Diffusers / Comfy). Mac path: app pack [notapalindrome/ltx25-mlx](https://huggingface.co/notapalindrome/ltx25-mlx) (MLX conversion provenance: [mlx-community/ltx-2.5-mlx](https://huggingface.co/mlx-community/ltx-2.5-mlx)) + runtime [dgrauet/ltx-2-mlx](https://github.com/dgrauet/ltx-2-mlx) `@v0.15.2`. Plan: `plans/ltx-2.5-support.md`.
+Upstream: [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) (CUDA `ltx-pipelines` / Diffusers / Comfy). Mac path: app pack [notapalindrome/ltx25-mlx](https://huggingface.co/notapalindrome/ltx25-mlx) (MLX conversion provenance: [mlx-community/ltx-2.5-mlx](https://huggingface.co/mlx-community/ltx-2.5-mlx)) + runtime [dgrauet/ltx-2-mlx](https://github.com/dgrauet/ltx-2-mlx) `@v0.18.0`. Plan: `plans/ltx-2.5-support.md`.
 
 ### Catalog ↔ official model family
 
@@ -35,7 +35,7 @@ Upstream: [Lightricks/LTX-2.5](https://huggingface.co/Lightricks/LTX-2.5) (CUDA 
 |---|---|---|---|
 | `ltx25_distilled` | `notapalindrome/ltx25-mlx` (~110GB w/ LoRA) | `--distilled` | Distilled DiT, fixed **8 steps, CFG=1** |
 | `ltx25_dev` | same (LoRA bundled) | `--two-stage` + `transformer-dev` + fuse `ltx-2.5-22b-distilled-lora-450-bf16` | Dev two-stage (half-res + spatial upscale + distilled-LoRA refine); stage-1 steps/CFG from UI (defaults 30 / 3), stage-2 = 3 |
-| `ltx25_distilled_ditq8` | same + `notapalindrome/ltx25-mlx-ditq8` overlay | `--distilled` on shadowed pack | Distilled + Q8 DiT (0.15.2 has no `--dit`) |
+| `ltx25_distilled_ditq8` | same + `notapalindrome/ltx25-mlx-ditq8` overlay | `--distilled` on shadowed pack | Distilled + Q8 DiT (0.18 has no `--dit`) |
 
 Gemma 4 is **bundled** in `gemma4-12b-ltx-v1/`. Do not use the Gemma 3 picker for 2.5. `mlx-community/ltx-2.5-mlx-q8` is the **text encoder**, not a DiT quant — never catalog it as DiT.
 
@@ -56,15 +56,15 @@ App loads the community pack through bundled `LTXVideoGenerator/Resources/ltx25_
 | I2V first-frame | Yes → `--image` |
 | `num_frames % 8 == 1`; W/H ÷32 | Defaults OK; app snaps W/H to **64** (stricter) |
 | Extra timeline keyframes | Yes — repeatable `--image PATH FRAME_IDX STRENGTH` (pixel idx; mlx-video uses latent `--keyframe`) |
-| Duration predictor (omit frames) | Load fixed in adapter for community split q/k/v; app still passes `-f` from slider ([upstream #125](https://github.com/dgrauet/ltx-2-mlx/issues/125)) |
-| Native multishot / DFR | **Not wired** — no CLI in 0.15.2 ([upstream #127](https://github.com/dgrauet/ltx-2-mlx/issues/127)). `--segment` Prompt Relay not in UI yet |
-| Disable audio | **Ignored** on 0.15.2 ([upstream #126](https://github.com/dgrauet/ltx-2-mlx/issues/126)) |
+| Duration predictor (omit frames) | Yes — "Auto duration" toggle passes `--auto-duration MIN:MAX` and omits `-f`; upstream 0.16+ loads community DurationHead natively ([upstream #125](https://github.com/dgrauet/ltx-2-mlx/issues/125) fixed) |
+| Native multishot / DFR | DFR **not wired** (needs `--dfr` + gated detailing-LoRA licence handling). Prompt Relay **in UI** as repeatable `--segment TEXT [LEN]` (multishot-ish beats) |
+| Disable audio | Yes — `--no-audio` forwarded for ltx-2-mlx 0.16+ ([upstream #126](https://github.com/dgrauet/ltx-2-mlx/issues/126) fixed) |
 
 Parity epic: https://github.com/james-see/ltx-video-mac/issues/85
 
 **Prompting:** official LTX-2.5 style only — [ltx.io](https://ltx.io/blog/ltx-2-5-prompt-guide) / [docs.ltx.io](https://docs.ltx.io/api-documentation/implementation-guides/prompting-guide). App copy: `EXAMPLES.md`, `docs/usage.md`, README tips. Flowing present-tense paragraphs, quoted dialogue, prose hard cuts. No `START FRAME` / JUMP CUT lists. Prefer single continuous take on Mac Distilled/Dev until multishot/DFR is wired.
 
-Do **not** port 2.5 into `mlx-video-with-audio`. Pin install: `Ltx2MlxInstall` in `PythonEnvironment.swift` (`v0.15.2` core + pipelines) + `mlx-lm>=0.31.2`. Only required when a 2.5 / 12GB model is selected.
+Do **not** port 2.5 into `mlx-video-with-audio`. Pin install: `Ltx2MlxInstall` in `PythonEnvironment.swift` (`v0.18.0` core + pipelines) + `mlx-lm>=0.31.2`. Only required when a 2.5 / 12GB model is selected.
 
 ## Dev / build
 
@@ -105,8 +105,8 @@ LTX-2.5 / 12GB (opt-in; app can auto-install on model select):
 
 ```bash
 pip install \
-  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-core-mlx" \
-  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.15.2#subdirectory=packages/ltx-pipelines-mlx" \
+  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.18.0#subdirectory=packages/ltx-core-mlx" \
+  "git+https://github.com/dgrauet/ltx-2-mlx.git@v0.18.0#subdirectory=packages/ltx-pipelines-mlx" \
   "mlx-lm>=0.31.2"
 ```
 
@@ -147,7 +147,7 @@ Pin source of truth: `mlxVideoMinVersion` in `PythonEnvironment.swift` **and** `
 
 | Need | Dep |
 |---|---|
-| LTX-2.5 / 12GB | `ltx-core-mlx` + `ltx-pipelines-mlx` @ `v0.15.2` (git; not PyPI) |
+| LTX-2.5 / 12GB | `ltx-core-mlx` + `ltx-pipelines-mlx` @ `v0.18.0` (git; not PyPI) |
 | MiniMax H3 | local `h3` binary + HF weights (~92–144GB) |
 | Voiceover / music | ElevenLabs keys and/or `mlx-audio` |
 
