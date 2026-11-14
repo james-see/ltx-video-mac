@@ -48,6 +48,13 @@ struct LTXModel: Identifiable, Codable, Hashable {
         bundledTextEncoderId ?? selectedId
     }
 
+    /// LTX-2.5 packs ship DurationHead weights: the CLI can predict the frame
+    /// count from the prompt (`--auto-duration MIN:MAX`, ltx-2-mlx 0.16+).
+    /// The 12GB mixed-precision 2.3 pack has no DurationHead.
+    var supportsAutoDuration: Bool {
+        backend == .ltx2Mlx && usesBundledGemma4
+    }
+
     init(
         id: String,
         repo: String,
@@ -543,6 +550,14 @@ struct GenerationParameters: Codable, Equatable, Hashable {
     /// Additional conditioning keyframes beyond the primary source image.
     /// Each pins an image to a position along the timeline.
     var keyframes: [Keyframe] = []
+    /// Let DurationHead predict the frame count from the prompt (ltx2Mlx
+    /// backend, LTX-2.5 packs). The bridge omits `-f` and passes
+    /// `--auto-duration MIN:MAX` instead. The Frames slider is ignored.
+    var autoDuration: Bool = false
+    /// Auto-duration bounds in seconds (inclusive). Predicted duration is
+    /// clamped to this range before snapping to the 8k+1 frame grid.
+    var autoDurationMinSeconds: Double = 1.0
+    var autoDurationMaxSeconds: Double = 10.0
 
     // Default for LTX-2 on Apple Silicon
     static let `default` = GenerationParameters(
@@ -636,5 +651,8 @@ extension GenerationParameters {
         imageStrength = try c.decode(Double.self, forKey: .imageStrength)
         imageFramePosition = try c.decodeIfPresent(String.self, forKey: .imageFramePosition) ?? "first"
         keyframes = try c.decodeIfPresent([Keyframe].self, forKey: .keyframes) ?? []
+        autoDuration = try c.decodeIfPresent(Bool.self, forKey: .autoDuration) ?? false
+        autoDurationMinSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMinSeconds) ?? 1.0
+        autoDurationMaxSeconds = try c.decodeIfPresent(Double.self, forKey: .autoDurationMaxSeconds) ?? 10.0
     }
 }
