@@ -218,6 +218,37 @@ Click a video to see:
 - **Reuse Prompt** - Copy prompt back to input
 - **Delete** - Remove video
 
+## Local REST API: first/last frame conditioning
+
+With the API server enabled in Settings, submit to `http://127.0.0.1:8420/generate`.
+The primary source image anchors `first` by default; set `image_frame_position`
+to `last` to anchor the end instead. Extra keyframes use a **0.0–1.0 fraction**
+of the timeline, not a percentage or frame index. Image strength defaults to 1.0.
+
+```bash
+curl http://127.0.0.1:8420/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "prompt": "The robot slowly nods, then returns to its resting pose. The camera stays still.",
+    "model_id": "ltx23_distilled_q4",
+    "source_image_path": "/absolute/path/robot-first.png",
+    "parameters": {
+      "width": 1024, "height": 576, "num_frames": 177, "fps": 25,
+      "seed": 20261018, "guidance_scale": 1.0,
+      "image_strength": 1.0,
+      "image_frame_position": "first",
+      "keyframes": [
+        {"image_path": "/absolute/path/robot-last.png", "position": 1.0, "strength": 1.0}
+      ]
+    }
+  }'
+```
+
+Check `GET /queue` for the accepted `image_frame_position`, `image_strength`, and
+`keyframes`. Invalid keyframe paths, positions, strengths, or frame-position
+values return HTTP 400 without adding a generation. This conditioning applies
+to the LTX backends; MiniMax H3 does not support these timeline anchors.
+
 ## Tips for Best Results
 
 ### Start Small

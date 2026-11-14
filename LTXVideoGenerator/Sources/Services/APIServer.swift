@@ -1,4 +1,6 @@
 import Foundation
+import CoreFoundation
+import Combine
 import Network
 import UniformTypeIdentifiers
 
@@ -126,7 +128,7 @@ class APIServer: ObservableObject {
                 "endpoints": [
                     "GET /status": "Server and generation status",
                     "GET /queue": "Current generation queue",
-                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_dev, ltx25_distilled_ditq8, minimax_h3, minimax_h3_int8, minimax_h3_turbo. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
+                    "POST /generate": "Submit generation request (optional source_image_path, model_id, text_encoder_id; parameters.image_frame_position and parameters.keyframes support first/last frame conditioning). model_id also accepts ltx23_12gb, ltx25_distilled, ltx25_dev, ltx25_distilled_ditq8, minimax_h3, minimax_h3_int8, minimax_h3_turbo. text_encoder_id applies for ltx23_12gb; ignored for 2.5/H3.",
                     "DELETE /queue/:id": "Cancel a queued request"
                 ]
             ])
@@ -168,7 +170,14 @@ class APIServer: ObservableObject {
                         "num_frames": request.parameters.numFrames,
                         "fps": request.parameters.fps,
                         "num_inference_steps": request.parameters.numInferenceSteps,
-                        "guidance_scale": request.parameters.guidanceScale
+                        "guidance_scale": request.parameters.guidanceScale,
+                        "image_strength": request.parameters.imageStrength,
+                        "image_frame_position": request.parameters.imageFramePosition,
+                        "keyframes": request.parameters.keyframes.map { keyframe in
+                            ["image_path": keyframe.imagePath,
+                             "position": keyframe.position,
+                             "strength": keyframe.strength] as [String: Any]
+                        }
                     ]
                 ]
             }
@@ -238,6 +247,46 @@ class APIServer: ObservableObject {
                         return
                     }
                     params.imageStrength = imageStrength
+                }
+                if let rawPosition = p["image_frame_position"] {
+                    guard let position = rawPosition as? String,
+                          ["first", "last"].contains(position) else {
+                        sendResponse(connection, status: 400, body: ["error": "parameters.image_frame_position must be first or last"])
+                        return
+                    }
+                    params.imageFramePosition = position
+                }
+                if let rawKeyframes = p["keyframes"] {
+                    guard let keyframes = rawKeyframes as? [[String: Any]] else {
+                        sendResponse(connection, status: 400, body: ["error": "parameters.keyframes must be an array of objects"])
+                        return
+                    }
+                    for (index, keyframe) in keyframes.enumerated() {
+                        let field = "parameters.keyframes[\(index)]"
+                        let image = validateSourceImagePath(keyframe["image_path"])
+                        guard let path = image.path, image.error == nil else {
+                            let message = image.error?.replacingOccurrences(of: "source_image_path", with: "\(field).image_path")
+                                ?? "\(field).image_path is required"
+                            sendResponse(connection, status: 400, body: ["error": message])
+                            return
+                        }
+                        guard let number = keyframe["position"] as? NSNumber,
+                              CFGetTypeID(number) != CFBooleanGetTypeID(),
+                              number.doubleValue.isFinite,
+                              (0.0...1.0).contains(number.doubleValue) else {
+                            sendResponse(connection, status: 400, body: ["error": "\(field).position must be a number between 0.0 and 1.0"])
+                            return
+                        }
+                        let rawStrength = keyframe["strength"] ?? 1.0
+                        guard let strength = rawStrength as? NSNumber,
+                              CFGetTypeID(strength) != CFBooleanGetTypeID(),
+                              strength.doubleValue.isFinite,
+                              (0.0...1.0).contains(strength.doubleValue) else {
+                            sendResponse(connection, status: 400, body: ["error": "\(field).strength must be a number between 0.0 and 1.0"])
+                            return
+                        }
+                        params.keyframes.append(Keyframe(imagePath: path, position: number.doubleValue, strength: strength.doubleValue))
+                    }
                 }
             }
             if resolvedModel.backend == .h3c {

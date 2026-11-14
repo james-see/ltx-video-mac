@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Fixed
+- REST API `/generate` now forwards `parameters.image_frame_position` and `parameters.keyframes` for first/last and timeline image conditioning. Invalid anchors return HTTP 400 before queuing. `/queue` includes the accepted conditioning parameters.
+
 ## [2.3.87] - 2026-10-11
 
 ### Fixed
