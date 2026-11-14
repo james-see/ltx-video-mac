@@ -5,7 +5,7 @@ All notable changes to LTX Video Generator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## [2.3.89] - 2026-11-13
 
 ### Added
 - **DFR (Diffusion Fidelity Rendering) for LTX-2.5 packs** (#85): new experimental toggle in Parameters — half-res distilled stage with keyframe slots on a segment-aligned canvas, then full-res detailing via the official IC-LoRA (upstream `--dfr`). Steps/CFG follow upstream DFR defaults. First run downloads the gated `Lightricks/LTX-2.5-22b-IC-LoRA-Pixel-Spatial-Upscaler` — accept its licence on the HF model page once (HF login required). The DFR child process sets `HF_HUB_DISABLE_XET=1` because hf-xet returns masked hashes for gated files and crashes that download.
