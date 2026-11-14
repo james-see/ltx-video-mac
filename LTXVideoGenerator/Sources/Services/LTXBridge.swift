@@ -1310,6 +1310,11 @@ try:
 
     log(f"Command: {' '.join(cmd)}")
     child_env = os.environ.copy()
+    if dfr_mode:
+        # hf-xet returns masked hashes for gated files and crashes the
+        # detailing-LoRA download ("Unable to parse string as hex hash
+        # value"). Plain HTTP downloads gated repos fine.
+        child_env["HF_HUB_DISABLE_XET"] = "1"
     process = subprocess.Popen(
         cmd,
         env=child_env,
